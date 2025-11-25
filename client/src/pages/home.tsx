@@ -79,8 +79,7 @@ export default function Home() {
                 <span className="text-outline-primary">22</span>
               </h1>
               <p className="text-xl text-muted-foreground max-w-lg font-light leading-relaxed mb-6">
-                Fully 3D printed with PPA CF and Stainless Steel. Flow-through technology. 
-                Ready to rock on any host.
+                Fully 3D printed with PPA Carbon Fiber, TPU sleeves, and Stainless Steel blast baffles. Flow-through technology. Lightning fast maintenance. Ready to rock on any host.
               </p>
               
               <div className="flex items-baseline gap-3 mb-2">
