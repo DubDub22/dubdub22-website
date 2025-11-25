@@ -207,8 +207,9 @@ export default function Home() {
                   <SpecRow label="Length" value="Standard Compact" />
                   <SpecRow label="Diameter" value="Standard Rimfire" />
                   <SpecRow label="Thread Pitch" value="1/2 x 28" />
-                  <SpecRow label="Material 1" value="PPA Carbon Fiber" />
-                  <SpecRow label="Material 2" value="Stainless Steel (Blast Baffles)" />
+                  <SpecRow label="Tube and Baffles" value="PPA Carbon Fiber" />
+                  <SpecRow label="Blast Baffles" value="Stainless Steel" />
+                  <SpecRow label="Sleeves (2x)" value="TPU (Rubberlike)" />
                   <SpecRow label="Full Auto Rated" value="Yes (Rifle)" />
                   <SpecRow label="Maintenance" value="User Serviceable" />
                 </div>
