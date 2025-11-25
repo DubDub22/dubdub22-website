@@ -46,7 +46,7 @@ export default function Home() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center pt-16 bg-grid-pattern">
+      <section className="relative min-h-screen flex items-center pt-16">
         <div className="container mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8 z-10">
             <motion.div
@@ -87,11 +87,11 @@ export default function Home() {
             className="relative z-10 flex justify-center"
           >
             <div className="relative w-full max-w-[500px] aspect-[9/16] md:aspect-square">
-              <div className="absolute inset-0 bg-primary/10 blur-[100px] rounded-full" />
+              {/* Removed blur glow to eliminate boxy shadow effect */}
               <img 
                 src={IMAGES.fullSide} 
                 alt="Dub Dub 22 Suppressor" 
-                className="relative w-full h-full object-contain drop-shadow-2xl"
+                className="relative w-full h-full object-contain drop-shadow-2xl mix-blend-normal"
               />
             </div>
           </motion.div>
@@ -102,8 +102,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section id="features" className="py-24 bg-card/30">
+      {/* Features Grid - Removed background card/30 for seamless look */}
+      <section id="features" className="py-24">
         <div className="container mx-auto px-6">
           <div className="mb-16">
             <h2 className="text-4xl font-bold mb-4">ENGINEERED FOR PERFORMANCE</h2>
@@ -195,8 +195,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Specs Section */}
-      <section id="specs" className="py-24 bg-secondary/20">
+      {/* Specs Section - Removed background secondary/20 for seamless look */}
+      <section id="specs" className="py-24">
         <div className="container mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
              <div>
