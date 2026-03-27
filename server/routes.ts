@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import fs from "fs";
 import session from "express-session";
 import { storage } from "./storage";
+import { pool } from "./db";
 
 const SALES_EMAIL = "sales@doublettactical.com";
 const WARRANTY_EMAIL = "warranty@doublettactical.com";
@@ -152,6 +153,28 @@ async function sendViaGmail({
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Ensure auth tables exist
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_pin_requests (
+      id SERIAL PRIMARY KEY,
+      pin_hash VARCHAR(64) NOT NULL,
+      ip_address VARCHAR(45) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS admin_ip_whitelist (
+      id SERIAL PRIMARY KEY,
+      ip_address VARCHAR(45) NOT NULL UNIQUE,
+      whitelisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS admin_failed_attempts (
+      id SERIAL PRIMARY KEY,
+      ip_address VARCHAR(45) NOT NULL,
+      attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {}); // Don't fail startup if DB is unavailable
+
   // Trust proxy for secure cookies
   app.set('trust proxy', 1);
 
@@ -163,15 +186,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cookie: { secure: process.env.NODE_ENV === "production" }
   }));
 
-  app.post("/api/admin/login", (req, res) => {
-    const { password } = req.body;
-    // Simple password check. In production, use env var.
-    const adminPassword = process.env.ADMIN_PASSWORD || "dubdubadmin24";
-    if (password === adminPassword) {
-      (req.session as any).isAdmin = true;
-      return res.json({ ok: true });
+  // Get client IP from request
+  const getClientIp = (req: any): string => {
+    return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      || req.headers['x-real-ip'] as string
+      || req.socket?.remoteAddress
+      || '';
+  };
+
+  // --- PIN-based auth endpoints ---
+
+  // Request a PIN (posted to Discord webhook)
+  app.post("/api/admin/request-pin", async (req, res) => {
+    try {
+      const ip = getClientIp(req);
+
+      // Rate limit: one PIN request per 60 seconds per IP
+      const recent = await pool.query(
+        `SELECT id FROM admin_pin_requests WHERE ip_address = $1 AND created_at > NOW() - INTERVAL '60 seconds'`,
+        [ip]
+      );
+      if (recent.rows.length > 0) {
+        return res.status(429).json({ ok: false, error: "Please wait 60 seconds before requesting another PIN." });
+      }
+
+      // Generate 6-digit PIN
+      const pin = Math.floor(100000 + Math.random() * 900000).toString();
+      const pinHash = Buffer.from(pin).toString('base64'); // simple hash, not cryptographic but enough for this use
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+      await pool.query(
+        `INSERT INTO admin_pin_requests (pin_hash, ip_address, expires_at) VALUES ($1, $2, $3)`,
+        [pinHash, ip, expiresAt]
+      );
+
+      // Post to Discord webhook
+      const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+      if (webhookUrl) {
+        const discordPayload = {
+          content: `🔐 **Admin Access Request**\n\nPIN: \`${pin}\`\nIP: \`${ip}\`\n\nValid for 5 minutes. Paste this PIN at dubdub22.com/admin to unlock access.`,
+        };
+        fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(discordPayload),
+        }).catch(() => {});
+      }
+
+      return res.json({ ok: true, message: "PIN sent to #general channel." });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "server_error" });
     }
-    return res.status(401).json({ ok: false, error: "invalid_password" });
+  });
+
+  // Verify PIN and whitelist IP
+  app.post("/api/admin/verify-pin", async (req, res) => {
+    try {
+      const { pin } = req.body;
+      if (!pin || !/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ ok: false, error: "invalid_pin_format" });
+      }
+
+      const ip = getClientIp(req);
+      const pinHash = Buffer.from(pin).toString('base64');
+
+      // Check for recent failed attempts (brute force protection)
+      const recentFail = await pool.query(
+        `SELECT COUNT(*) as cnt FROM admin_failed_attempts WHERE ip_address = $1 AND attempted_at > NOW() - INTERVAL '15 minutes'`,
+        [ip]
+      );
+      if (parseInt(recentFail.rows[0]?.cnt || '0') >= 5) {
+        return res.status(429).json({ ok: false, error: "Too many failed attempts. Wait 15 minutes." });
+      }
+
+      // Find valid PIN for this IP that hasn't expired
+      const result = await pool.query(
+        `SELECT id FROM admin_pin_requests WHERE pin_hash = $1 AND ip_address = $2 AND expires_at > NOW()`,
+        [pinHash, ip]
+      );
+
+      if (result.rows.length === 0) {
+        // Record failed attempt
+        await pool.query(`INSERT INTO admin_failed_attempts (ip_address) VALUES ($1)`, [ip]);
+        return res.status(401).json({ ok: false, error: "invalid_or_expired_pin" });
+      }
+
+      // PIN is valid — delete it and whitelist the IP for 7 days
+      await pool.query(`DELETE FROM admin_pin_requests WHERE id = $1`, [result.rows[0].id]);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await pool.query(
+        `INSERT INTO admin_ip_whitelist (ip_address, expires_at) VALUES ($1, $2)
+         ON CONFLICT (ip_address) DO UPDATE SET expires_at = $2, whitelisted_at = NOW()`,
+        [ip, expiresAt]
+      );
+
+      (req.session as any).isAdmin = true;
+      return res.json({ ok: true, expiresAt: expiresAt.toISOString() });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "server_error" });
+    }
+  });
+
+  // Check if current IP is whitelisted (used on page load)
+  app.get("/api/admin/check-auth", async (req, res) => {
+    try {
+      const ip = getClientIp(req);
+      const result = await pool.query(
+        `SELECT expires_at FROM admin_ip_whitelist WHERE ip_address = $1 AND expires_at > NOW()`,
+        [ip]
+      );
+      if (result.rows.length > 0) {
+        (req.session as any).isAdmin = true;
+        return res.json({ ok: true, authorized: true, expiresAt: result.rows[0].expires_at });
+      }
+      return res.json({ ok: true, authorized: false });
+    } catch (err: any) {
+      return res.status(500).json({ ok: false, error: err?.message || "server_error" });
+    }
   });
 
   app.post("/api/admin/logout", (req, res) => {

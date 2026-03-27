@@ -33,8 +33,8 @@ type Submission = {
     createdAt: string;
 };
 
-const loginSchema = z.object({
-    password: z.string().min(1, "Password is required"),
+const pinSchema = z.object({
+    pin: z.string().length(6, "PIN must be 6 digits"),
 });
 
 function CopyableText({ text }: { text: string }) {
@@ -55,17 +55,18 @@ function CopyableText({ text }: { text: string }) {
 
 export default function AdminPage() {
     const { toast } = useToast();
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [authStatus, setAuthStatus] = useState<'checking' | 'needs_pin' | 'pin_sent' | 'authorized'>('checking');
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState("all");
     const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
-    const form = useForm<z.infer<typeof loginSchema>>({
-        resolver: zodResolver(loginSchema),
-        defaultValues: { password: "" },
+    const pinForm = useForm<z.infer<typeof pinSchema>>({
+        resolver: zodResolver(pinSchema),
+        defaultValues: { pin: "" },
     });
 
     const fetchSubmissions = async () => {
@@ -73,14 +74,14 @@ export default function AdminPage() {
             setIsLoading(true);
             const res = await fetch("/api/admin/submissions");
             if (res.status === 403) {
-                setIsLoggedIn(false);
+                setAuthStatus('needs_pin');
                 setIsLoading(false);
                 return;
             }
             if (!res.ok) throw new Error("Failed to fetch");
             const data = await res.json();
             setSubmissions(data.data || []);
-            setIsLoggedIn(true);
+            setAuthStatus('authorized');
         } catch (err: any) {
             toast({ title: "Error", description: err.message, variant: "destructive" });
         } finally {
@@ -89,58 +90,129 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
-        fetchSubmissions();
+        // Check if IP is already whitelisted on mount
+        fetch("/api/admin/check-auth")
+            .then(res => res.json())
+            .then(data => {
+                if (data.authorized) {
+                    setExpiresAt(data.expiresAt || null);
+                    fetchSubmissions();
+                } else {
+                    setAuthStatus('needs_pin');
+                }
+            })
+            .catch(() => setAuthStatus('needs_pin'));
     }, []);
 
-    const onLogin = async (values: z.infer<typeof loginSchema>) => {
+    const onRequestPin = async () => {
         try {
-            const res = await fetch("/api/admin/login", {
+            const res = await fetch("/api/admin/request-pin", { method: "POST" });
+            const data = await res.json();
+            if (!res.ok) {
+                toast({ title: "Request Failed", description: data.error || "Could not request PIN", variant: "destructive" });
+                return;
+            }
+            toast({ title: "PIN Sent", description: "Check the #general channel on Discord for your PIN." });
+            setAuthStatus('pin_sent');
+        } catch {
+            toast({ title: "Error", description: "Network error", variant: "destructive" });
+        }
+    };
+
+    const onVerifyPin = async (values: z.infer<typeof pinSchema>) => {
+        try {
+            const res = await fetch("/api/admin/verify-pin", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ password: values.password }),
+                body: JSON.stringify({ pin: values.pin }),
             });
-            if (res.ok) {
-                setIsLoggedIn(true);
-                fetchSubmissions();
-            } else {
-                toast({ title: "Login Failed", description: "Invalid password", variant: "destructive" });
+            const data = await res.json();
+            if (!res.ok) {
+                toast({ title: "Invalid PIN", description: data.error || "The PIN was invalid or expired.", variant: "destructive" });
+                pinForm.reset();
+                return;
             }
-        } catch (err) {
+            setExpiresAt(data.expiresAt || null);
+            setAuthStatus('authorized');
+            fetchSubmissions();
+        } catch {
             toast({ title: "Error", description: "Network error", variant: "destructive" });
         }
     };
 
     const onLogout = async () => {
         await fetch("/api/admin/logout", { method: "POST" });
-        setIsLoggedIn(false);
+        setAuthStatus('needs_pin');
         setSubmissions([]);
     };
 
-    if (!isLoggedIn) {
+    if (authStatus === 'checking') {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <p className="text-muted-foreground">Checking access...</p>
+            </div>
+        );
+    }
+
+    if (authStatus === 'needs_pin' || authStatus === 'pin_sent') {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center p-6">
                 <Card className="w-full max-w-md bg-card border-border shadow-2xl pt-6">
                     <CardHeader>
-                        <CardTitle className="text-2xl font-bold text-center">Admin Login</CardTitle>
+                        <CardTitle className="text-2xl font-bold text-center">🔐 Admin Access</CardTitle>
+                        <p className="text-center text-muted-foreground text-sm mt-2">
+                            {authStatus === 'needs_pin'
+                                ? "Request a PIN to access the admin panel."
+                                : "Enter the PIN posted in #general on Discord."}
+                        </p>
                     </CardHeader>
-                    <CardContent>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onLogin)} className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="password"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Password</FormLabel>
-                                            <FormControl>
-                                                <Input type="password" {...field} className="bg-background" />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                                <Button type="submit" className="w-full text-black bg-primary hover:bg-primary/90">Login</Button>
-                            </form>
-                        </Form>
+                    <CardContent className="space-y-4">
+                        {authStatus === 'needs_pin' && (
+                            <div className="space-y-3">
+                                <p className="text-sm text-muted-foreground text-center">
+                                    Clicking below will post a 6-digit PIN to the <strong>#general</strong> Discord channel.
+                                </p>
+                                <Button onClick={onRequestPin} className="w-full text-black bg-primary hover:bg-primary/90">
+                                    Request PIN
+                                </Button>
+                            </div>
+                        )}
+                        {authStatus === 'pin_sent' && (
+                            <Form {...pinForm}>
+                                <form onSubmit={pinForm.handleSubmit(onVerifyPin)} className="space-y-4">
+                                    <FormField
+                                        control={pinForm.control}
+                                        name="pin"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>6-Digit PIN</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        inputMode="numeric"
+                                                        pattern="[0-9]*"
+                                                        maxLength={6}
+                                                        placeholder="123456"
+                                                        className="text-center text-2xl tracking-widest font-mono bg-background"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <Button type="submit" className="w-full text-black bg-primary hover:bg-primary/90">
+                                        Unlock
+                                    </Button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAuthStatus('needs_pin')}
+                                        className="w-full text-xs text-muted-foreground hover:text-primary transition-colors"
+                                    >
+                                        Need a new PIN?
+                                    </button>
+                                </form>
+                            </Form>
+                        )}
                     </CardContent>
                 </Card>
             </div>
