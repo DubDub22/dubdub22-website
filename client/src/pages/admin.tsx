@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -69,7 +69,7 @@ export default function AdminPage() {
         defaultValues: { pin: "" },
     });
 
-    const fetchSubmissions = async () => {
+    const fetchSubmissions = useCallback(async () => {
         try {
             setIsLoading(true);
             const res = await fetch("/api/admin/submissions");
@@ -87,13 +87,15 @@ export default function AdminPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
+        let cancelled = false;
         // Check if IP is already whitelisted on mount
         fetch("/api/admin/check-auth")
             .then(res => res.json())
             .then(data => {
+                if (cancelled) return;
                 if (data.authorized) {
                     setExpiresAt(data.expiresAt || null);
                     fetchSubmissions();
@@ -101,8 +103,11 @@ export default function AdminPage() {
                     setAuthStatus('needs_pin');
                 }
             })
-            .catch(() => setAuthStatus('needs_pin'));
-    }, []);
+            .catch(() => {
+                if (!cancelled) setAuthStatus('needs_pin');
+            });
+        return () => { cancelled = true; };
+    }, [fetchSubmissions]);
 
     const onRequestPin = async () => {
         try {
