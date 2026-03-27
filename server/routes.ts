@@ -199,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/dealer-request", async (req, res) => {
     try {
-      const { requestType, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData } = req.body || {};
+      const { requestType, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, message } = req.body || {};
       const isInquiry = requestType === 'Dealer Inquiry';
 
       // For orders, require contact/business/email/quantity; for inquiries just contact/business/email
@@ -219,6 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Phone: ${phone || "N/A"}`,
         isInquiry ? "" : `Quantity: ${quantityCans}`,
         isInquiry ? "" : `SOT File: ${fflFileName || "Not provided"}`,
+        message ? `\nMessage:\n${message}` : "",
       ].join("\n");
 
       const ext = (fflFileName || "").split(".").pop()?.toLowerCase() || "";
@@ -252,6 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email,
           phone,
           quantity: quantityCans ? String(quantityCans) : null,
+          description: message || null,
           fflFileName: isInquiry ? null : fflFileName,
           fflFileData: isInquiry ? null : fflFileData,
         }).catch(err => {

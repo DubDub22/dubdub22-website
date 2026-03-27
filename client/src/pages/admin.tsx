@@ -249,7 +249,8 @@ export default function AdminPage() {
                                                 <td className="px-6 py-4">
                                                     {sub.type === 'dealer' ? (
                                                         <div className="space-y-2">
-                                                            <div><span className="text-muted-foreground">Quantity:</span> <span className="font-medium text-foreground">{sub.quantity} units</span></div>
+                                                            {sub.quantity && <div><span className="text-muted-foreground">Quantity:</span> <span className="font-medium text-foreground">{sub.quantity} units</span></div>}
+                                                            {sub.description && <div className="max-w-xs"><span className="text-muted-foreground block mb-1">Message:</span> <span className="text-foreground text-sm">{sub.description}</span></div>}
                                                             {sub.fflFileName && (
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-muted-foreground">File:</span>

@@ -91,6 +91,7 @@ const dealerFormSchema = z.object({
   confirmEmail: z.string().email({ message: "Please confirm your email address." }),
   phone: z.string().min(13, { message: "Phone number is required." }),
   quantityCans: z.string().optional(),
+  message: z.string().optional(),
 }).refine((data) => data.email === data.confirmEmail, {
   message: "Email addresses must match.",
   path: ["confirmEmail"],
@@ -463,6 +464,28 @@ function DealerForm() {
                 />
                 <FileInputZone id="fflUpload" label="SOT Upload" accept=".pdf,.png,.jpg,.jpeg" required={true} description="Accepted: PDF, PNG, JPG/JPEG" />
               </>
+            )}
+
+            {/* Inquiry-only field */}
+            {requestType === 'inquiry' && (
+              <FormField
+                control={form.control}
+                name="message"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Questions or Comments <span className="text-xs text-muted-foreground">(optional)</span></FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Tell us about your shop, what you're looking for, any questions you have..."
+                        rows={3}
+                        {...field}
+                        className="bg-card border-border focus:border-primary resize-none"
+                      />
+                    </FormControl>
+                    <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                  </FormItem>
+                )}
+              />
             )}
 
             <MotionWrapButton className="w-full">
