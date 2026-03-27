@@ -71,6 +71,9 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   * {
     @apply border-border;
   }
@@ -106,4 +109,11 @@
     -webkit-text-stroke: 1px hsl(var(--primary));
     color: transparent;
   }
+}
+
+/* Force high-visibility success/failure toast styling */
+[data-radix-toast-viewport] [data-state] {
+  background: #f97316 !important;
+  color: #111111 !important;
+  border-color: #ea580c !important;
 }

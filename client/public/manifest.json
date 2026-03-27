@@ -1,0 +1,24 @@
+{
+    "name": "DubDub22",
+    "short_name": "DubDub22",
+    "description": "Next-Gen 3D Printed 22LR Suppressor",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#ff6600",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

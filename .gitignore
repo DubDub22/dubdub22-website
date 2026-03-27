@@ -4,3 +4,15 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# macOS metadata
+._*
+.DS_Store
+**/.DS_Store
+
+# Local env / replit
+.env
+.local/
+._.git
+._.gitignore
+._.local
+._.replit
