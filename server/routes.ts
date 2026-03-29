@@ -14,6 +14,127 @@ const BCC_EMAIL = "ericwoodard84@gmail.com";
 const GMAIL_TOKEN_PATH = "/home/dubdub/DubDub-Hub/gmail_token.json";
 const ENV_PATH = "/home/dubdub/DubDub-Hub/.env";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// OCR / Parse helpers — shared by file-upload routes and parse-* routes
+// ─────────────────────────────────────────────────────────────────────────────
+
+function parseSotText(text: string): Record<string, string> {
+  const parsed: Record<string, string> = {};
+  const einMatch = text.match(/(\d{2}-\d{7})/);
+  if (einMatch) parsed.ein = einMatch[1];
+  const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
+  const nameBlockIdx = lines.findIndex((l: string) =>
+    l.includes("Name and Principal") || l.includes("Business Address") || l.includes("DOUBLE T") || l.includes("TACTICAL")
+  );
+  if (nameBlockIdx >= 0) {
+    const relevant = lines.slice(nameBlockIdx, nameBlockIdx + 6);
+    const companyLine = relevant.find((l: string) =>
+      /^[A-Z][A-Z\s&\-']+$/.test(l) && l.length > 2 && !l.includes("Address") && !l.includes("Name")
+    );
+    if (companyLine) parsed.businessName = companyLine;
+    const addrLine = relevant.find((l: string) => /TX|Texas/.test(l));
+    if (addrLine) {
+      parsed.businessAddress = addrLine.replace(/\s+TX\s+\d{5}.*$/, "").trim();
+      const zipMatch = addrLine.match(/\d{5}/);
+      if (zipMatch) parsed.zip = zipMatch[0];
+      parsed.state = "TX";
+    }
+  }
+  const typeMatch = text.match(/\((\d+)\)\s*([^\n]+(?:NFA[^\n]+)?)/i);
+  if (typeMatch) parsed.sotLicenseType = typeMatch[2].trim();
+  const yearMatch = text.match(/Tax Year[:\s]+(\d{4})/i);
+  if (yearMatch) parsed.sotTaxYear = yearMatch[1];
+  const periodMatch = text.match(/(\d{2}\/\d{2}\/\d{4})\s+to\s+(\d{2}\/\d{2}\/\d{4})/);
+  if (periodMatch) { parsed.sotPeriodStart = periodMatch[1]; parsed.sotPeriodEnd = periodMatch[2]; }
+  const dateMatch = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}/i);
+  if (dateMatch) parsed.sotReceiptDate = dateMatch[0];
+  const ctrlMatch = text.match(/(\d{7,}[A-Z0-9\-]+)/);
+  if (ctrlMatch) parsed.sotControlNumber = ctrlMatch[1];
+  return parsed;
+}
+
+function parseFflText(text: string): Record<string, string> {
+  const parsed: Record<string, string> = {};
+  const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
+  const licMatch = text.match(/(?:License\s*(?:No\.?|Number|#)\s*:?\s*)([8]-\d{5,}(?:-[A-Z])?)/i)
+    || text.match(/\b(8-\d{5,}(?:-[A-Z])?)\b/);
+  if (licMatch) parsed.fflLicenseNumber = licMatch[1].trim();
+  const typeMatch = text.match(/(?:Type\s*0?\d)\s*[-–]\s*([^\n]+(?:Dealer|Manufacturer|Gunsmith)[^\n]*)/i)
+    || text.match(/(Dealer in Firearms|Manufacturer of Firearms|Gunsmith)/i);
+  if (typeMatch) { const t = typeMatch[1] || typeMatch[0]; parsed.fflLicenseType = t.trim().slice(0, 80); }
+  const expMatch = text.match(/(?:Expires?\s*[:]\s*)(0?\d[-/]0?\d[-/]\d{4})/i)
+    || text.match(/\b(0?\d[-/]0?\d[-/]\d{4})\b/);
+  if (expMatch) parsed.fflExpiry = expMatch[1].trim();
+  const licIdx = lines.findIndex((l: string) =>
+    /license\s*(no\.?|number|#)/i.test(l) || /\b8-\d{5,}/.test(l)
+  );
+  if (licIdx > 0) {
+    for (let i = licIdx - 1; i >= Math.max(0, licIdx - 5); i--) {
+      const line = lines[i];
+      if (/^(Street|St|Ave|Rd|Fl|Ste|Suite|Po Box|Box)/i.test(line)) continue;
+      if (/license|ffl|expires|city|state|zip|phone|email/i.test(line)) continue;
+      if (/^[A-Z][A-Z\s&\-\.\']+$/.test(line) && line.length > 2) { parsed.businessName = line; break; }
+    }
+  }
+  const addrMatch = text.match(/([A-Za-z\s]+),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
+  if (addrMatch) { parsed.city = addrMatch[1].trim(); parsed.state = addrMatch[2].trim(); parsed.zip = addrMatch[3].trim(); }
+  return parsed;
+}
+
+async function parseSotFile(fileData: string, fileName: string): Promise<{ text: string; parsed: Record<string, string> }> {
+  const buf = Buffer.from(fileData, "base64");
+  const ext = (fileName || "").split(".").pop()?.toLowerCase() || "bin";
+  const tmpPath = `/tmp/sot_parse_${Date.now()}.${ext}`;
+  fs.writeFileSync(tmpPath, buf);
+  let text = "";
+  if (ext === "pdf") {
+    try {
+      execSync(`pdftoppm -r 150 -png "${tmpPath}" /tmp/sot_parse_page`, { stdio: "ignore" });
+      const pageImg = glob.sync("/tmp/sot_parse_page-*.png")[0];
+      if (pageImg) {
+        execSync(`tesseract "${pageImg}" stdout -l eng --psm 6 2>/dev/null > /tmp/sot_ocr.txt`);
+        text = fs.readFileSync("/tmp/sot_ocr.txt", "utf8");
+      }
+    } catch { text = "[OCR failed]"; }
+  } else {
+    try {
+      execSync(`tesseract "${tmpPath}" stdout -l eng --psm 6 2>/dev/null > /tmp/sot_ocr.txt`);
+      text = fs.readFileSync("/tmp/sot_ocr.txt", "utf8");
+    } catch { text = "[OCR failed]"; }
+  }
+  try { fs.unlinkSync(tmpPath); } catch {}
+  try { fs.unlinkSync("/tmp/sot_ocr.txt"); } catch {}
+  try { glob.sync("/tmp/sot_parse_page-*.png").forEach((f: string) => fs.unlinkSync(f)); } catch {}
+  return { text, parsed: parseSotText(text) };
+}
+
+async function parseFflFile(fileData: string, fileName: string): Promise<{ text: string; parsed: Record<string, string> }> {
+  const buf = Buffer.from(fileData, "base64");
+  const ext = (fileName || "").split(".").pop()?.toLowerCase() || "bin";
+  const tmpPath = `/tmp/ffl_parse_${Date.now()}.${ext}`;
+  fs.writeFileSync(tmpPath, buf);
+  let text = "";
+  if (ext === "pdf") {
+    try {
+      execSync(`pdftoppm -r 150 -png "${tmpPath}" /tmp/ffl_parse_page`, { stdio: "ignore" });
+      const pageImg = glob.sync("/tmp/ffl_parse_page-*.png")[0];
+      if (pageImg) {
+        execSync(`tesseract "${pageImg}" stdout -l eng --psm 6 2>/dev/null > /tmp/ffl_ocr.txt`);
+        text = fs.readFileSync("/tmp/ffl_ocr.txt", "utf8");
+      }
+    } catch { text = "[OCR failed]"; }
+  } else {
+    try {
+      execSync(`tesseract "${tmpPath}" stdout -l eng --psm 6 2>/dev/null > /tmp/ffl_ocr.txt`);
+      text = fs.readFileSync("/tmp/ffl_ocr.txt", "utf8");
+    } catch { text = "[OCR failed]"; }
+  }
+  try { fs.unlinkSync(tmpPath); } catch {}
+  try { fs.unlinkSync("/tmp/ffl_ocr.txt"); } catch {}
+  try { glob.sync("/tmp/ffl_parse_page-*.png").forEach((f: string) => fs.unlinkSync(f)); } catch {}
+  return { text, parsed: parseFflText(text) };
+}
+
 function loadEnvFromFile(filePath: string): Record<string, string> {
   const out: Record<string, string> = {};
   if (!fs.existsSync(filePath)) return out;
@@ -512,97 +633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { sotFileData, sotFileName } = req.body || {};
       if (!sotFileData) return res.status(400).json({ ok: false, error: "no_file_data" });
-
-      // Decode base64 to temp file
-      const buf = Buffer.from(sotFileData, "base64");
-      const ext = (sotFileName || "").split(".").pop()?.toLowerCase() || "bin";
-      const tmpPath = `/tmp/sot_parse_${Date.now()}.${ext}`;
-      const imgPath = `/tmp/sot_parse_${Date.now()}.png`;
-      fs.writeFileSync(tmpPath, buf);
-
-      let text = "";
-
-      if (ext === "pdf") {
-        // Convert PDF page to image then OCR
-        try {
-          execSync(`pdftoppm -r 150 -png "${tmpPath}" /tmp/sot_parse_page`, { stdio: "ignore" });
-          const pageImg = glob.sync("/tmp/sot_parse_page-*.png")[0];
-          if (pageImg) {
-            execSync(`tesseract "${pageImg}" stdout -l eng --psm 6 2>/dev/null > /tmp/sot_ocr.txt`);
-            text = fs.readFileSync("/tmp/sot_ocr.txt", "utf8");
-          }
-        } catch (e) {
-          text = "[OCR failed - could not extract text from PDF]";
-        }
-      } else {
-        // Image file — direct OCR
-        try {
-          execSync(`tesseract "${tmpPath}" stdout -l eng --psm 6 2>/dev/null > /tmp/sot_ocr.txt`);
-          text = fs.readFileSync("/tmp/sot_ocr.txt", "utf8");
-        } catch (e) {
-          text = "[OCR failed]";
-        }
-      }
-
-      // Clean up
-      try { fs.unlinkSync(tmpPath); } catch {}
-      try { fs.unlinkSync(imgPath); } catch {}
-      try { fs.unlinkSync("/tmp/sot_ocr.txt"); } catch {}
-
-      // Parse structured fields from OCR text
-      const parsed: Record<string, string> = {};
-
-      // EIN — look for pattern XX-XXXXXXX
-      const einMatch = text.match(/(\d{2}-\d{7})/);
-      if (einMatch) parsed.ein = einMatch[1];
-
-      // Business name — "DOUBLE T TACTICAL" or similar
-      const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
-      // Usually on first few lines after "Name and Principal Business Address"
-      const nameBlockIdx = lines.findIndex((l: string) =>
-        l.includes("Name and Principal") || l.includes("Business Address") || l.includes("DOUBLE T") || l.includes("TACTICAL")
-      );
-      if (nameBlockIdx >= 0) {
-        const relevant = lines.slice(nameBlockIdx, nameBlockIdx + 6);
-        // Look for company name in CAPS
-        const companyLine = relevant.find((l: string) =>
-          /^[A-Z][A-Z\s&\-']+$/.test(l) && l.length > 2 && !l.includes("Address") && !l.includes("Name")
-        );
-        if (companyLine) parsed.businessName = companyLine;
-
-        // Look for city/state/zip
-        const addrLine = relevant.find((l: string) => /TX|Texas/.test(l));
-        if (addrLine) {
-          parsed.businessAddress = addrLine.replace(/\s+TX\s+\d{5}.*$/, "").trim();
-          const zipMatch = addrLine.match(/\d{5}/);
-          if (zipMatch) parsed.zip = zipMatch[0];
-          parsed.state = "TX";
-        }
-      }
-
-      // License type — e.g. "(72) NFA FIREARMS MFGR (REDUCED)"
-      const typeMatch = text.match(/\((\d+)\)\s*([^\n]+(?:NFA[^\n]+)?)/i);
-      if (typeMatch) parsed.sotLicenseType = typeMatch[2].trim();
-
-      // Tax year — "Tax Year: 2026"
-      const yearMatch = text.match(/Tax Year[:\s]+(\d{4})/i);
-      if (yearMatch) parsed.sotTaxYear = yearMatch[1];
-
-      // Tax period — "07/01/2025 to 06/30/2026"
-      const periodMatch = text.match(/(\d{2}\/\d{2}\/\d{4})\s+to\s+(\d{2}\/\d{2}\/\d{4})/);
-      if (periodMatch) {
-        parsed.sotPeriodStart = periodMatch[1];
-        parsed.sotPeriodEnd = periodMatch[2];
-      }
-
-      // Receipt date — "July 03, 2025"
-      const dateMatch = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}/i);
-      if (dateMatch) parsed.sotReceiptDate = dateMatch[0];
-
-      // Control number — "2025160-N75-129"
-      const ctrlMatch = text.match(/(\d{7,}[A-Z0-9\-]+)/);
-      if (ctrlMatch) parsed.sotControlNumber = ctrlMatch[1];
-
+      const { text, parsed } = await parseSotFile(sotFileData, sotFileName || "");
       return res.json({ ok: true, data: { parsed, rawText: text.slice(0, 500) } });
     } catch (err: any) {
       console.error("parse_sot_error", err);
@@ -615,90 +646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { fflFileData, fflFileName } = req.body || {};
       if (!fflFileData) return res.status(400).json({ ok: false, error: "no_file_data" });
-
-      // Decode base64 to temp file
-      const buf = Buffer.from(fflFileData, "base64");
-      const ext = (fflFileName || "").split(".").pop()?.toLowerCase() || "bin";
-      const tmpPath = `/tmp/ffl_parse_${Date.now()}.${ext}`;
-      fs.writeFileSync(tmpPath, buf);
-
-      let text = "";
-
-      if (ext === "pdf") {
-        try {
-          execSync(`pdftoppm -r 150 -png "${tmpPath}" /tmp/ffl_parse_page`, { stdio: "ignore" });
-          const pageImg = glob.sync("/tmp/ffl_parse_page-*.png")[0];
-          if (pageImg) {
-            execSync(`tesseract "${pageImg}" stdout -l eng --psm 6 2>/dev/null > /tmp/ffl_ocr.txt`);
-            text = fs.readFileSync("/tmp/ffl_ocr.txt", "utf8");
-          }
-        } catch {
-          text = "[OCR failed - could not extract text from PDF]";
-        }
-      } else {
-        try {
-          execSync(`tesseract "${tmpPath}" stdout -l eng --psm 6 2>/dev/null > /tmp/ffl_ocr.txt`);
-          text = fs.readFileSync("/tmp/ffl_ocr.txt", "utf8");
-        } catch {
-          text = "[OCR failed]";
-        }
-      }
-
-      // Clean up
-      try { fs.unlinkSync(tmpPath); } catch {}
-      try { fs.unlinkSync("/tmp/ffl_ocr.txt"); } catch {}
-      try { glob.sync("/tmp/ffl_parse_page-*.png").forEach((f: string) => fs.unlinkSync(f)); } catch {}
-
-      // Parse structured fields from OCR text
-      const parsed: Record<string, string> = {};
-      const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
-
-      // License number — e.g. "8-654321" or "8-654321-B" (preceded by "License No." or standalone)
-      const licMatch = text.match(/(?:License\s*(?:No\.?|Number|#)\s*:?\s*)([8]-\d{5,}(?:-[A-Z])?)/i)
-        || text.match(/\b(8-\d{5,}(?:-[A-Z])?)\b/);
-      if (licMatch) parsed.fflLicenseNumber = licMatch[1].trim();
-
-      // License type — "Type 01 - Dealer" or "Dealer in Firearms"
-      const typeMatch = text.match(/(?:Type\s*0?\d)\s*[-–]\s*([^\n]+(?:Dealer|Manufacturer|Gunsmith)[^\n]*)/i)
-        || text.match(/(Dealer in Firearms|Manufacturer of Firearms|Gunsmith)/i);
-      if (typeMatch) {
-        const t = typeMatch[1] || typeMatch[0];
-        parsed.fflLicenseType = t.trim().slice(0, 80);
-      }
-
-      // Expiration date — "Expires: 02-28-2027" or "02\/28\/2027"
-      const expMatch = text.match(/(?:Expires?\s*[:]\s*)(0?\d[-/]0?\d[-/]\d{4})/i)
-        || text.match(/\b(0?\d[-/]0?\d[-/]\d{4})\b/);
-      if (expMatch) parsed.fflExpiry = expMatch[1].trim();
-
-      // Business name — usually near the top, often in ALL CAPS or "doing business as"
-      // Look for company name before "License No."
-      const licIdx = lines.findIndex((l: string) =>
-        /license\s*(no\.?|number|#)/i.test(l) || /\b8-\d{5,}/.test(l)
-      );
-      if (licIdx > 0) {
-        // Scan upwards from license line for company name
-        for (let i = licIdx - 1; i >= Math.max(0, licIdx - 5); i--) {
-          const line = lines[i];
-          // Skip obvious address lines and labels
-          if (/^(Street|St|Ave|Rd|Fl|Ste|Suite|Po Box|Box)/i.test(line)) continue;
-          if (/license|ffl|expires|city|state|zip|phone|email/i.test(line)) continue;
-          // CAPS line with some length is likely the name
-          if (/^[A-Z][A-Z\s&\-\.\']+$/.test(line) && line.length > 2) {
-            parsed.businessName = line;
-            break;
-          }
-        }
-      }
-
-      // City/State/Zip — look for "City, ST 12345" pattern near license
-      const addrMatch = text.match(/([A-Za-z\s]+),\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)/);
-      if (addrMatch) {
-        parsed.city = addrMatch[1].trim();
-        parsed.state = addrMatch[2].trim();
-        parsed.zip = addrMatch[3].trim();
-      }
-
+      const { text, parsed } = await parseFflFile(fflFileData, fflFileName || "");
       return res.json({ ok: true, data: { parsed, rawText: text.slice(0, 500) } });
     } catch (err: any) {
       console.error("parse_ffl_error", err);
@@ -706,17 +654,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload / update SOT file for a dealer
+  // Upload / update SOT file for a dealer — parse and auto-populate SOT fields
   app.post("/api/admin/dealers/:id/sot-file", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { sotFileName, sotFileData } = req.body || {};
       if (!sotFileData) return res.status(400).json({ ok: false, error: "no_file" });
 
-      await pool.query(
-        `UPDATE dealers SET sot_file_name = $1, sot_file_data = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
-        [sotFileName || "sot-file", sotFileData, id]
-      );
+      // Run OCR parsing in parallel with the file save
+      const [parseResult] = await Promise.all([
+        parseSotFile(sotFileData, sotFileName || "sot-file").catch(() => ({ text: "", parsed: {} })),
+        pool.query(
+          `UPDATE dealers SET sot_file_name = $1, sot_file_data = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+          [sotFileName || "sot-file", sotFileData, id]
+        ),
+      ]);
+
+      const { parsed } = parseResult;
+      if (Object.keys(parsed).length > 0) {
+        const sets: string[] = [];
+        const vals: any[] = [];
+        let idx = 1;
+        const fieldMap: Record<string, string> = {
+          ein: "ein", sotLicenseType: "sot_license_type", sotTaxYear: "sot_tax_year",
+          sotPeriodStart: "sot_period_start", sotPeriodEnd: "sot_period_end",
+          sotReceiptDate: "sot_receipt_date", sotControlNumber: "sot_control_number",
+          businessName: "business_name", businessAddress: "business_address",
+          city: "city", state: "state", zip: "zip",
+        };
+        for (const [key, col] of Object.entries(fieldMap)) {
+          if (parsed[key]) { sets.push(`${col} = $${idx++}`); vals.push(parsed[key]); }
+        }
+        // Mark verified=true when both FFL and SOT are on file
+        const hasFfl = await pool.query(`SELECT ffl_file_name FROM dealers WHERE id = $1 AND ffl_file_name IS NOT NULL`, [id]);
+        if (hasFfl.rows.length > 0) { sets.push(`verified = true`); }
+        if (sets.length > 0) {
+          vals.push(id);
+          await pool.query(`UPDATE dealers SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = $${idx}`, vals);
+        }
+      }
       return res.json({ ok: true });
     } catch (err: any) {
       console.error("upload_sot_error", err);
@@ -724,17 +700,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload / update FFL file for a dealer
+  // Upload / update FFL file for a dealer — parse and auto-populate FFL fields
   app.post("/api/admin/dealers/:id/ffl-file", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { fflFileName, fflFileData } = req.body || {};
       if (!fflFileData) return res.status(400).json({ ok: false, error: "no_file" });
 
-      await pool.query(
-        `UPDATE dealers SET ffl_file_name = $1, ffl_file_data = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
-        [fflFileName || "ffl-file", fflFileData, id]
-      );
+      // Run OCR parsing in parallel with the file save
+      const [parseResult] = await Promise.all([
+        parseFflFile(fflFileData, fflFileName || "ffl-file").catch(() => ({ text: "", parsed: {} })),
+        pool.query(
+          `UPDATE dealers SET ffl_file_name = $1, ffl_file_data = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+          [fflFileName || "ffl-file", fflFileData, id]
+        ),
+      ]);
+
+      const { parsed } = parseResult;
+      if (Object.keys(parsed).length > 0) {
+        const sets: string[] = [];
+        const vals: any[] = [];
+        let idx = 1;
+        const fieldMap: Record<string, string> = {
+          fflLicenseNumber: "ffl_license_number", fflLicenseType: "ffl_license_type",
+          fflExpiry: "ffl_expiry", businessName: "business_name",
+          city: "city", state: "state", zip: "zip",
+        };
+        for (const [key, col] of Object.entries(fieldMap)) {
+          if (parsed[key]) { sets.push(`${col} = $${idx++}`); vals.push(parsed[key]); }
+        }
+        // Mark verified=true when both FFL and SOT are on file
+        const hasSot = await pool.query(`SELECT sot_file_name FROM dealers WHERE id = $1 AND sot_file_name IS NOT NULL`, [id]);
+        if (hasSot.rows.length > 0) { sets.push(`verified = true`); }
+        if (sets.length > 0) {
+          vals.push(id);
+          await pool.query(`UPDATE dealers SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = $${idx}`, vals);
+        }
+      }
       return res.json({ ok: true });
     } catch (err: any) {
       console.error("upload_ffl_error", err);
@@ -838,6 +840,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // ───────────────────────────────────────────────────────────────
       // ───────────────────────────────────────────────────────────────
 
+      // ── Auto-create or find dealer record ──────────────────────────
+      let dealerId: string;
+      const existingDealer = await pool.query(
+        `SELECT id FROM dealers WHERE email = $1 LIMIT 1`,
+        [email.toLowerCase()]
+      );
+      if (existingDealer.rows.length > 0) {
+        dealerId = existingDealer.rows[0].id;
+      } else {
+        const newDealer = await pool.query(
+          `INSERT INTO dealers (business_name, contact_name, email, phone, source, tier)
+           VALUES ($1, $2, $3, $4, 'web_form', 'Standard')
+           RETURNING id`,
+          [businessName, contactName, email.toLowerCase(), phone || null]
+        );
+        dealerId = newDealer.rows[0].id;
+      }
+
       const body = [
         `DubDub22 ${isInquiry ? 'Dealer Inquiry' : isDemoOrder ? 'Dealer Order (DEMO CAN)' : 'Dealer Order'}`,
         "",
@@ -891,7 +911,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
       ]);
 
-      return res.json({ ok: true, id: dbResult?.id || "unknown" });
+      // Link submission to the dealer via dealer_submissions
+      const submissionId = dbResult?.id;
+      if (submissionId && submissionId !== "unknown") {
+        const orderType = isInquiry ? "inquiry" : isDemoOrder ? "demo_order" : "retail_order";
+        await pool.query(
+          `INSERT INTO dealer_submissions (dealer_id, submission_id, order_type, quantity)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT DO NOTHING`,
+          [dealerId, submissionId, orderType, quantityCans ? String(quantityCans) : null]
+        ).catch(err => console.error("dealer_submission_link_failed", err));
+      }
+
+      return res.json({ ok: true, id: submissionId || "unknown" });
     } catch (err: any) {
       console.error("dealer_request_error", err?.message || err);
       return res.status(500).json({ ok: false, error: err?.message || "dealer_save_failed" });
