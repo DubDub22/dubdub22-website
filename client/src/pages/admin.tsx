@@ -186,6 +186,17 @@ function SotBadge({ dealer }: { dealer: Dealer }) {
   return <Badge variant="secondary" className="text-xs">No SOT</Badge>;
 }
 
+function FflBadge({ dealer }: { dealer: Dealer }) {
+  const now = new Date();
+  const end = dealer.fflExpiry ? parseISO(dealer.fflExpiry) : null;
+  const expired = end && end < now;
+  const soon = end && !expired && (end.getTime() - now.getTime()) < 90 * 24 * 60 * 60 * 1000;
+  if (expired) return <Badge variant="destructive" className="text-xs">FFL Expired</Badge>;
+  if (soon) return <Badge variant="outline" className="text-xs border-yellow-500 text-yellow-600">FFL Expiring Soon</Badge>;
+  if (dealer.fflLicenseNumber) return <Badge variant="default" className="text-xs bg-green-600">FFL Active</Badge>;
+  return <Badge variant="secondary" className="text-xs">No FFL</Badge>;
+}
+
 function TaxBadge({ dealer }: { dealer: Dealer }) {
   if (dealer.taxExempt) return <Badge variant="default" className="text-xs bg-blue-600">Tax Exempt</Badge>;
   return null;
@@ -414,6 +425,44 @@ function DealersTab({ dealers, isLoading, onSelect, onAddNew }: {
 
   return (
     <div className="space-y-4">
+      {/* Expiry notifications */}
+      {(() => {
+        const now = new Date();
+        const sotSoon = dealers.filter(d => {
+          if (!d.sotPeriodEnd) return false;
+          const end = parseISO(`20${d.sotPeriodEnd}`);
+          const diff = end.getTime() - now.getTime();
+          return diff > 0 && diff < 90 * 24 * 60 * 60 * 1000;
+        });
+        const sotExpired = dealers.filter(d => {
+          if (!d.sotPeriodEnd) return false;
+          return parseISO(`20${d.sotPeriodEnd}`) < now;
+        });
+        const fflSoon = dealers.filter(d => {
+          if (!d.fflExpiry) return false;
+          const end = parseISO(d.fflExpiry);
+          const diff = end.getTime() - now.getTime();
+          return diff > 0 && diff < 90 * 24 * 60 * 60 * 1000;
+        });
+        const fflExpired = dealers.filter(d => {
+          if (!d.fflExpiry) return false;
+          return parseISO(d.fflExpiry) < now;
+        });
+        const total = sotSoon.length + sotExpired.length + fflSoon.length + fflExpired.length;
+        if (total === 0) return null;
+        return (
+          <div className="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950/30 p-3 space-y-1.5">
+            <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
+              <span className="text-base">⚠️</span> Document Expiry Alerts — {total} dealer{total !== 1 ? "s" : ""} need attention
+            </div>
+            {sotExpired.map(d => <div key={`sot-exp-${d.id}`} className="text-xs text-yellow-700 dark:text-yellow-300">❌ <strong>{d.businessName}</strong> — SOT expired {d.sotPeriodEnd}</div>)}
+            {sotSoon.map(d => <div key={`sot-soon-${d.id}`} className="text-xs text-yellow-700 dark:text-yellow-300">🟡 <strong>{d.businessName}</strong> — SOT expiring {d.sotPeriodEnd}</div>)}
+            {fflExpired.map(d => <div key={`ffl-exp-${d.id}`} className="text-xs text-yellow-700 dark:text-yellow-300">❌ <strong>{d.businessName}</strong> — FFL expired {d.fflExpiry}</div>)}
+            {fflSoon.map(d => <div key={`ffl-soon-${d.id}`} className="text-xs text-yellow-700 dark:text-yellow-300">🟡 <strong>{d.businessName}</strong> — FFL expiring {d.fflExpiry}</div>)}
+          </div>
+        );
+      })()}
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
@@ -452,6 +501,7 @@ function DealersTab({ dealers, isLoading, onSelect, onAddNew }: {
               <th className="px-3 py-2">Contact</th>
               <th className="px-3 py-2">EIN / SOT</th>
               <th className="px-3 py-2">SOT Status</th>
+              <th className="px-3 py-2">FFL Status</th>
               <th className="px-3 py-2">Tax</th>
               <th className="px-3 py-2">Orders</th>
               <th className="px-3 py-2">Added</th>
@@ -459,8 +509,8 @@ function DealersTab({ dealers, isLoading, onSelect, onAddNew }: {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? <tr><td colSpan={8} className="text-center py-8">Loading...</td></tr>
-              : filtered.length === 0 ? <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">
+            {isLoading ? <tr><td colSpan={9} className="text-center py-8">Loading...</td></tr>
+              : filtered.length === 0 ? <tr><td colSpan={9} className="text-center py-8 text-muted-foreground">
                 {dealers.length === 0 ? "No dealers yet." : "No dealers match your search."}
               </td></tr>
               : filtered.map(d => <DealerRow key={d.id} dealer={d} onClick={() => onSelect(d)} />)}
@@ -484,6 +534,7 @@ function DealerCard({ dealer, onClick }: { dealer: Dealer; onClick: () => void }
       </div>
       <div className="flex flex-wrap gap-1.5 mb-2">
         <SotBadge dealer={dealer} />
+        <FflBadge dealer={dealer} />
         <TaxBadge dealer={dealer} />
       </div>
       <div className="flex gap-4 text-xs text-muted-foreground">
@@ -511,6 +562,7 @@ function DealerRow({ dealer, onClick }: { dealer: Dealer; onClick: () => void })
         {dealer.sotLicenseType && <div className="text-xs text-muted-foreground truncate max-w-[150px]">{dealer.sotLicenseType}</div>}
       </td>
       <td className="px-3 py-3"><SotBadge dealer={dealer} /></td>
+      <td className="px-3 py-3"><FflBadge dealer={dealer} /></td>
       <td className="px-3 py-3"><TaxBadge dealer={dealer} /></td>
       <td className="px-3 py-3">
         <div className="flex gap-3 text-xs">
@@ -540,6 +592,7 @@ function DealerDetail({
   const { toast } = useToast();
   const [editMode, setEditMode] = useState(false);
   const [sotParsing, setSotParsing] = useState(false);
+  const [fflParsing, setFflParsing] = useState(false);
   const [sotFile, setSotFile] = useState<File | null>(null);
   const [sotPreview, setSotPreview] = useState<string | null>(null);
   const [fflFile, setFflFile] = useState<File | null>(null);
@@ -645,6 +698,47 @@ function DealerDetail({
       toast({ title: "Parse Failed", description: err.message, variant: "destructive" });
     } finally {
       setSotParsing(false);
+    }
+  };
+
+  const handleParseFfl = async () => {
+    if (!fflFile && !dealer.fflFileData) {
+      toast({ title: "No FFL File", description: "Upload an FFL file first, then parse it.", variant: "destructive" });
+      return;
+    }
+    setFflParsing(true);
+    try {
+      let fileData = dealer.fflFileData;
+      if (fflFile) {
+        fileData = await new Promise<string>((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res((reader.result as string).split(",")[1]);
+          reader.onerror = rej;
+          reader.readAsDataURL(fflFile);
+        });
+      }
+      const res = await fetch("/api/admin/dealers/parse-ffl", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fflFileData: fileData, fflFileName: fflFile?.name || dealer.fflFileName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const p = data.data.parsed;
+      if (p.businessName) form.setValue("businessName", p.businessName);
+      if (p.fflLicenseNumber) form.setValue("fflLicenseNumber", p.fflLicenseNumber);
+      if (p.fflLicenseType) form.setValue("fflLicenseType", p.fflLicenseType);
+      if (p.fflExpiry) form.setValue("fflExpiry", p.fflExpiry);
+      if (p.city) form.setValue("city", p.city);
+      if (p.state) form.setValue("state", p.state);
+      if (p.zip) form.setValue("zip", p.zip);
+
+      toast({ title: "FFL Parsed!", description: "Fields auto-filled from the FFL document." });
+    } catch (err: any) {
+      toast({ title: "Parse Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setFflParsing(false);
     }
   };
 
@@ -932,12 +1026,18 @@ function DealerDetail({
                           </div>
                         )}
                       </div>
-                      {dealer.fflFileData && dealer.fflFileName && (
-                        <div className="flex flex-col gap-1">
-                          <FilePreview fileName={dealer.fflFileName} fileData={dealer.fflFileData} label="View Current" />
-                          <FileDownload fileName={dealer.fflFileName} fileData={dealer.fflFileData} />
-                        </div>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {dealer.fflFileData && dealer.fflFileName && (
+                          <>
+                            <FilePreview fileName={dealer.fflFileName} fileData={dealer.fflFileData} label="View Current" />
+                            <FileDownload fileName={dealer.fflFileName} fileData={dealer.fflFileData} />
+                          </>
+                        )}
+                        <Button type="button" variant="outline" size="sm" onClick={handleParseFfl} disabled={fflParsing}
+                          className="h-7 text-xs whitespace-nowrap">
+                          {fflParsing ? "Parsing..." : "🤖 Parse FFL"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
