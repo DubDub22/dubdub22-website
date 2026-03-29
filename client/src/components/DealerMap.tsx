@@ -197,9 +197,11 @@ export default function DealerMap() {
       if (searchCoords) {
         return a._dist - b._dist;
       }
-      // Default: alpha by state then city
-      if (a.state !== b.state) return a.state.localeCompare(b.state);
-      return a.city.localeCompare(b.city);
+      // Default: alpha by state then city (handle nulls)
+      const aState = a.state || '';
+      const bState = b.state || '';
+      if (aState !== bState) return aState.localeCompare(bState);
+      return (a.city || '').localeCompare(b.city || '');
     });
   }, [dealers, searchCoords]);
 
