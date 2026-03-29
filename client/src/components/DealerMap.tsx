@@ -9,7 +9,65 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin, X, Loader2 } from "lucide-react";
 
-// Fix default marker icons in Leaflet with webpack/vite
+// Custom colored marker icons for dealer tiers
+// Preferred = gold, Normal = dark/black
+const goldIcon = new L.DivIcon({
+  className: "custom-marker",
+  html: `<div style="
+    width: 25px;
+    height: 41px;
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid #8B6914;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    margin-left: -3px;
+    margin-top: -38px;
+  "></div>
+  <div style="
+    width: 10px;
+    height: 10px;
+    background: #FFD700;
+    border: 2px solid #8B6914;
+    border-radius: 50%;
+    margin-left: 4px;
+    margin-top: -34px;
+    position: absolute;
+  "></div>`,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [0, -41],
+});
+
+const blackIcon = new L.DivIcon({
+  className: "custom-marker",
+  html: `<div style="
+    width: 25px;
+    height: 41px;
+    background: linear-gradient(135deg, #333 0%, #111 100%);
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid #000;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    margin-left: -3px;
+    margin-top: -38px;
+  "></div>
+  <div style="
+    width: 10px;
+    height: 10px;
+    background: #333;
+    border: 2px solid #000;
+    border-radius: 50%;
+    margin-left: 4px;
+    margin-top: -34px;
+    position: absolute;
+  "></div>`,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [0, -41],
+});
+
+// Fallback to default marker if needed
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -194,6 +252,7 @@ export default function DealerMap() {
                     key={dealer.id}
                     // @ts-expect-error custom property
                     position={dealer._latlng}
+                    icon={dealer.tier === "Preferred" ? goldIcon : blackIcon}
                     eventHandlers={{
                       click: () => openForm(dealer),
                     }}
