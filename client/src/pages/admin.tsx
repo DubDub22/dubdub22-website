@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO } from "date-fns";
-import { Copy, Image as ImageIcon, Download, Trash2 } from "lucide-react";
+import { Copy, Image as ImageIcon, Download, Trash2, Package } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 type Submission = {
     id: string;
@@ -31,6 +32,10 @@ type Submission = {
     damagePhoto1Data?: string;
     damagePhoto2Name?: string;
     damagePhoto2Data?: string;
+    atfFormName?: string;
+    atfFormData?: string;
+    trackingNumber?: string;
+    shippedAt?: string;
     createdAt: string;
 };
 
@@ -65,6 +70,11 @@ export default function AdminPage() {
     const [typeFilter, setTypeFilter] = useState("all");
     const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
     const [deleteTarget, setDeleteTarget] = useState<Submission | null>(null);
+    const [shipTarget, setShipTarget] = useState<Submission | null>(null);
+    const [shipTracking, setShipTracking] = useState("");
+    const [shipAtfFile, setShipAtfFile] = useState<File | null>(null);
+    const [shipAtfPreview, setShipAtfPreview] = useState<string | null>(null);
+    const [isShipping, setIsShipping] = useState(false);
 
     const pinForm = useForm<z.infer<typeof pinSchema>>({
         resolver: zodResolver(pinSchema),
@@ -164,6 +174,59 @@ export default function AdminPage() {
             toast({ title: "Error", description: "Could not delete submission.", variant: "destructive" });
         } finally {
             setDeleteTarget(null);
+        }
+    };
+
+    const handleAtfFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => setShipAtfPreview(ev.target?.result as string);
+        reader.readAsDataURL(file);
+        setShipAtfFile(file);
+    };
+
+    const handleShip = async () => {
+        if (!shipTarget || !shipTracking.trim()) {
+            toast({ title: "Tracking Required", description: "Please enter a tracking number.", variant: "destructive" });
+            return;
+        }
+        setIsShipping(true);
+        try {
+            let atfFormData: string | undefined;
+            if (shipAtfFile) {
+                atfFormData = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve((reader.result as string).split(",")[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(shipAtfFile);
+                });
+            }
+            const res = await fetch(`/api/admin/submissions/${shipTarget.id}/ship`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    trackingNumber: shipTracking.trim(),
+                    atfFormName: shipAtfFile?.name || null,
+                    atfFormData: atfFormData || null,
+                }),
+            });
+            if (!res.ok) throw new Error("Ship failed");
+            const updated = { ...shipTarget, trackingNumber: shipTracking.trim(), shippedAt: new Date().toISOString() };
+            if (shipAtfFile) {
+                updated.atfFormName = shipAtfFile.name;
+                updated.atfFormData = atfFormData || undefined;
+            }
+            setSubmissions(prev => prev.map(s => s.id === shipTarget.id ? { ...s, ...updated } : s));
+            toast({ title: "Order Shipped", description: "Shipping info saved." });
+            setShipTarget(null);
+            setShipTracking("");
+            setShipAtfFile(null);
+            setShipAtfPreview(null);
+        } catch {
+            toast({ title: "Error", description: "Could not save shipping info.", variant: "destructive" });
+        } finally {
+            setIsShipping(false);
         }
     };
 
@@ -372,6 +435,47 @@ export default function AdminPage() {
                                                 </>
                                             )}
                                         </div>
+
+                                        {/* Shipping */}
+                                        <div className="border-t border-border pt-2 mt-2">
+                                            {sub.trackingNumber ? (
+                                                <div className="space-y-1">
+                                                    <span className="px-1.5 py-0.5 bg-green-600 text-white text-xs rounded font-bold">SHIPPED</span>
+                                                    <p className="text-xs font-mono text-foreground">{sub.trackingNumber}</p>
+                                                    {sub.shippedAt && <p className="text-xs text-muted-foreground">{format(parseISO(sub.shippedAt), 'MM/dd/yy HH:mm')}</p>}
+                                                    {sub.atfFormData && (
+                                                        <div className="flex gap-2 mt-1">
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <Button variant="outline" size="sm" className="h-7 text-xs">View ATF</Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-80 p-1 border-border bg-card">
+                                                                    {sub.atfFormName?.toLowerCase().endsWith('.pdf') ? (
+                                                                        <iframe src={`data:application/pdf;base64,${sub.atfFormData}`} className="w-full rounded-sm" style={{ height: '400px' }} title="ATF Form Preview" />
+                                                                    ) : (
+                                                                        <img src={`data:image;base64,${sub.atfFormData}`} alt="ATF Form Preview" className="w-full h-auto rounded-sm" />
+                                                                    )}
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                            <Button variant="outline" size="sm" asChild className="h-7 text-xs">
+                                                                <a href={`data:application/octet-stream;base64,${sub.atfFormData}`} download={sub.atfFormName || "atf-form"}>
+                                                                    Download ATF
+                                                                </a>
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full h-8 text-xs border-primary text-primary hover:bg-primary/10"
+                                                    onClick={() => { setShipTarget(sub); setShipTracking(""); setShipAtfFile(null); setShipAtfPreview(null); }}
+                                                >
+                                                    Mark as Shipped
+                                                </Button>
+                                            )}
+                                        </div>
                                     </div>
                                 ))
                             )}
@@ -386,17 +490,18 @@ export default function AdminPage() {
                                         <th className="px-3 py-2">Type</th>
                                         <th className="px-3 py-2 min-w-[180px]">Details</th>
                                         <th className="px-3 py-2">Message / Payload</th>
+                                        <th className="px-3 py-2">Shipping</th>
                                         <th className="px-3 py-2 w-10"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={5} className="text-center py-8">Loading...</td>
+                                            <td colSpan={6} className="text-center py-8">Loading...</td>
                                         </tr>
                                     ) : filteredSubmissions.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="text-center py-8 text-muted-foreground">No submissions found.</td>
+                                            <td colSpan={6} className="text-center py-8 text-muted-foreground">No submissions found.</td>
                                         </tr>
                                     ) : (
                                         filteredSubmissions.map((sub) => (
@@ -462,6 +567,50 @@ export default function AdminPage() {
                                                         </div>
                                                     )}
                                                 </td>
+                                                {/* Shipping column */}
+                                                <td className="px-3 py-3">
+                                                    {sub.trackingNumber ? (
+                                                        <div className="space-y-1">
+                                                            <span className="px-1.5 py-0.5 bg-green-600 text-white text-xs rounded font-bold">SHIPPED</span>
+                                                            <p className="text-xs font-mono text-foreground">{sub.trackingNumber}</p>
+                                                            {sub.shippedAt && (
+                                                                <p className="text-xs text-muted-foreground">{format(parseISO(sub.shippedAt), 'MM/dd/yy HH:mm')}</p>
+                                                            )}
+                                                            {sub.atfFormData && (
+                                                                <div className="flex gap-1 mt-1">
+                                                                    <Popover>
+                                                                        <PopoverTrigger asChild>
+                                                                            <Button variant="ghost" size="icon" className="h-5 w-5">
+                                                                                <ImageIcon className="h-3 w-3" />
+                                                                            </Button>
+                                                                        </PopoverTrigger>
+                                                                        <PopoverContent className="w-80 p-1 border-border bg-card">
+                                                                            {sub.atfFormName?.toLowerCase().endsWith('.pdf') ? (
+                                                                                <iframe src={`data:application/pdf;base64,${sub.atfFormData}`} className="w-full rounded-sm" style={{ height: '400px' }} title="ATF Form Preview" />
+                                                                            ) : (
+                                                                                <img src={`data:image;base64,${sub.atfFormData}`} alt="ATF Form Preview" className="w-full h-auto rounded-sm" />
+                                                                            )}
+                                                                        </PopoverContent>
+                                                                    </Popover>
+                                                                    <Button variant="ghost" size="icon" className="h-5 w-5" asChild>
+                                                                        <a href={`data:application/octet-stream;base64,${sub.atfFormData}`} download={sub.atfFormName || "atf-form"}>
+                                                                            <Download className="h-3 w-3" />
+                                                                        </a>
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 text-xs whitespace-nowrap border-primary text-primary hover:bg-primary/10"
+                                                            onClick={() => { setShipTarget(sub); setShipTracking(""); setShipAtfFile(null); setShipAtfPreview(null); }}
+                                                        >
+                                                            Mark Shipped
+                                                        </Button>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-3">
                                                     <Button
                                                         variant="ghost"
@@ -503,6 +652,76 @@ export default function AdminPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <Dialog open={!!shipTarget} onOpenChange={(open) => !open && setShipTarget(null)}>
+                <DialogContent className="bg-card border-border max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold">Mark Order as Shipped</DialogTitle>
+                        {shipTarget && (
+                            <p className="text-sm text-muted-foreground">
+                                {shipTarget.contactName} · {shipTarget.businessName} · Qty: {shipTarget.quantity || 'N/A'}
+                            </p>
+                        )}
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        <div>
+                            <label className="text-sm font-medium block mb-1.5">
+                                Tracking Number <span className="text-red-500">*</span>
+                            </label>
+                            <Input
+                                placeholder="1Z999AA10123456784"
+                                value={shipTracking}
+                                onChange={(e) => setShipTracking(e.target.value)}
+                                className="bg-background"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-medium block mb-1.5">
+                                ATF Form 5320.3 <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+                            </label>
+                            <div className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                                onClick={() => document.getElementById('atf-file-input')?.click()}>
+                                <input
+                                    id="atf-file-input"
+                                    type="file"
+                                    accept=".pdf,.png,.jpg,.jpeg"
+                                    className="hidden"
+                                    onChange={handleAtfFileChange}
+                                />
+                                {shipAtfPreview ? (
+                                    <div className="space-y-2">
+                                        <img
+                                            src={shipAtfPreview}
+                                            alt="ATF Form preview"
+                                            className="max-h-32 mx-auto rounded object-contain"
+                                        />
+                                        <p className="text-xs text-muted-foreground">{shipAtfFile?.name}</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        <Package className="h-8 w-8 mx-auto text-muted-foreground" />
+                                        <p className="text-sm text-muted-foreground">Click to upload ATF Form 5320.3</p>
+                                        <p className="text-xs text-muted-foreground">PDF, PNG, JPG accepted</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShipTarget(null)} className="border-border">Cancel</Button>
+                        <Button
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
+                            onClick={handleShip}
+                            disabled={isShipping}
+                        >
+                            {isShipping ? "Saving..." : "Confirm & Save"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

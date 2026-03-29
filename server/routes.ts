@@ -339,6 +339,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/admin/submissions/:id/ship", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { trackingNumber, atfFormName, atfFormData } = req.body || {};
+      if (!trackingNumber?.trim()) {
+        return res.status(400).json({ ok: false, error: "tracking_number_required" });
+      }
+      await pool.query(
+        `UPDATE submissions SET tracking_number = $1, atf_form_name = $2, atf_form_data = $3, shipped_at = NOW()::text WHERE id = $4`,
+        [trackingNumber.trim(), atfFormName || null, atfFormData || null, id]
+      );
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error("ship_submission_error", err);
+      return res.status(500).json({ ok: false, error: "failed_to_update" });
+    }
+  });
+
   app.post("/api/dealer-request", async (req, res) => {
     try {
       const { requestType, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, message } = req.body || {};
