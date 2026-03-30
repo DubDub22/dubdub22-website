@@ -1842,15 +1842,15 @@ function WarrantyTab({
 function DealerInquiriesTab({
   submissions, search, setSearch, onDelete
 }: {
-  submissions: Submission[];
+  submissions: (Submission & { source?: string; fflLicenseNumber?: string | null })[];
   search: string;
   setSearch: (s: string) => void;
-  onDelete: (sub: Submission) => void;
+  onDelete: (sub: Submission & { source?: string }) => void;
 }) {
   const filtered = submissions.filter((sub) => {
     if (search) {
       const q = search.toLowerCase();
-      const s = `${fmtDate(sub.createdAt)} ${sub.contactName} ${sub.businessName} ${sub.email} ${sub.phone}`.toLowerCase();
+      const s = `${fmtDate(sub.createdAt)} ${sub.contactName} ${sub.businessName} ${sub.email} ${sub.phone} ${sub.fflLicenseNumber || ""}`.toLowerCase();
       if (!s.includes(q)) return false;
     }
     return true;
@@ -1885,6 +1885,7 @@ function DealerInquiriesTab({
                 <p className="text-xs text-muted-foreground">{sub.contactName || "—"}</p>
                 <p className="text-xs text-muted-foreground">{sub.email || "—"}</p>
                 {sub.phone && <p className="text-xs text-muted-foreground">{sub.phone}</p>}
+                {sub.fflLicenseNumber && <p className="text-xs font-mono text-primary">FFL: {sub.fflLicenseNumber}</p>}
               </div>
             </div>
           ))}
@@ -1899,6 +1900,7 @@ function DealerInquiriesTab({
               <th className="px-3 py-2">Contact</th>
               <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">Phone</th>
+              <th className="px-3 py-2">FFL</th>
               <th className="px-3 py-2 w-10"></th>
             </tr>
           </thead>
@@ -1911,6 +1913,7 @@ function DealerInquiriesTab({
                   <td className="px-3 py-2">{sub.contactName || "—"}</td>
                   <td className="px-3 py-2">{sub.email || "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{sub.phone || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-primary">{sub.fflLicenseNumber || "—"}</td>
                   <td className="px-3 py-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
                       <Trash2 className="h-3.5 w-3.5" />

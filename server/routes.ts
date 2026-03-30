@@ -536,12 +536,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const { lat: lat1, lng: lng1 } = searchCoords;
 
-      // Fetch all dealers that have coordinates
+      // Fetch all dealers that have coordinates in the same state as the search zip
+      const searchState = searchCoords.state;
       const result = await pool.query(`
         SELECT id, business_name, city, state, zip, tier, verified, email, phone, lat, lng
         FROM dealers
-        WHERE lat IS NOT NULL AND lng IS NOT NULL
-      `);
+        WHERE lat IS NOT NULL AND lng IS NOT NULL AND state = $1
+      `, [searchState]);
 
       const R = 3958.8; // Earth radius in miles
       const DEG = Math.PI / 180;
@@ -562,10 +563,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Nearest 20 FFLs (all tiers)
       const nearest20 = withDist.slice(0, 20);
 
-      // Nearest Preferred dealer — must be in the same state (NFA transfers must stay in-state)
-      const searchState = searchCoords.state;
-      const sameStatePreferred = withDist.filter(d => d.tier === "Preferred" && d.state === searchState);
-      const nearestPreferred = sameStatePreferred[0] || null;
+      // Nearest Preferred dealer — same state (all results already in-state from query)
+      const nearestPreferred = withDist.find(d => d.tier === "Preferred") || null;
 
       return res.json({
         ok: true,
@@ -896,7 +895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/dealer-request", async (req, res) => {
     try {
-      const { requestType, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, message } = req.body || {};
+      const { requestType, contactName, businessName, email, phone, fflNumber, quantityCans, fflFileName, fflFileData, message } = req.body || {};
       const isInquiry = requestType === 'Dealer Inquiry';
 
       if (!contactName || !businessName || !email) {
@@ -962,6 +961,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `Business: ${businessName}`,
         `Email: ${email}`,
         `Phone: ${phone || "N/A"}`,
+        fflNumber ? `FFL: ${fflNumber}` : "",
         isInquiry ? "" : `Quantity: ${quantityCans}${isDemoOrder ? ' (DEMO CAN)' : ''}`,
         isInquiry ? "" : `SOT File: ${fflFileName || "Not provided"}`,
         message ? `\nMessage:\n${message}` : "",
@@ -997,6 +997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           businessName,
           email,
           phone,
+          fflLicenseNumber: fflNumber || null,
           quantity: quantityCans ? String(quantityCans) : null,
           description: message || null,
           fflFileName: isInquiry ? null : fflFileName,
@@ -1238,15 +1239,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let idx = 1;
 
       // Submissions: dealer leads (type=dealer, has_ordered_demo=false)
-      let subQuery = `SELECT 'submission' as source, id::text as id, contact_name, business_name, email, phone, NULL::text as message, created_at::timestamp as created_at FROM submissions WHERE type = 'dealer' AND has_ordered_demo = 'false'`;
+      let subQuery = `SELECT 'submission' as source, id::text as id, contact_name, business_name, email, phone, NULL::text as message, ffl_license_number, created_at::timestamp as created_at FROM submissions WHERE type = 'dealer' AND has_ordered_demo = 'false'`;
       if (search) {
-        subQuery += ` AND (contact_name ILIKE $${idx} OR business_name ILIKE $${idx} OR email ILIKE $${idx})`;
+        subQuery += ` AND (contact_name ILIKE $${idx} OR business_name ILIKE $${idx} OR email ILIKE $${idx} OR ffl_license_number ILIKE $${idx})`;
         params.push(`%${search}%`);
         idx++;
       }
 
       // Retail inquiries: duplicate leads from the public form
-      let retailQuery = `SELECT 'retail_inquiry' as source, ri.id::text as id, ri.contact_name, d.business_name, ri.email, ri.phone, ri.message, ri.created_at FROM retail_inquiries ri LEFT JOIN dealers d ON ri.dealer_id = d.id`;
+      let retailQuery = `SELECT 'retail_inquiry' as source, ri.id::text as id, ri.contact_name, d.business_name, ri.email, ri.phone, ri.message, NULL::text as ffl_license_number, ri.created_at FROM retail_inquiries ri LEFT JOIN dealers d ON ri.dealer_id = d.id`;
       if (search) {
         retailQuery += ` WHERE (ri.contact_name ILIKE $${idx} OR d.business_name ILIKE $${idx} OR ri.email ILIKE $${idx})`;
         params.push(`%${search}%`);
