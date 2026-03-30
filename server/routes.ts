@@ -1164,6 +1164,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Admin: Retail Inquiries ─────────────────────────────────────────
+  app.get("/api/admin/retail-inquiries", requireAdmin, async (req, res) => {
+    try {
+      const { search, status } = req.query;
+      let query = `SELECT ri.*, d.business_name as dealer_name FROM retail_inquiries ri LEFT JOIN dealers d ON ri.dealer_id = d.id WHERE 1=1`;
+      const params: any[] = [];
+      let idx = 1;
+
+      if (status && status !== "all") {
+        query += ` AND ri.status = $${idx++}`;
+        params.push(status);
+      }
+      if (search) {
+        query += ` AND (ri.contact_name ILIKE $${idx} OR ri.email ILIKE $${idx} OR ri.message ILIKE $${idx} OR d.business_name ILIKE $${idx})`;
+        params.push(`%${search}%`);
+        idx++;
+      }
+      query += ` ORDER BY ri.created_at DESC`;
+
+      const result = await pool.query(query, params);
+      return res.json({ ok: true, data: result.rows });
+    } catch (err: any) {
+      console.error("admin_retail_inquiries_error", err);
+      return res.status(500).json({ ok: false, error: "server_error" });
+    }
+  });
+
+  // ── Admin: Warranty Requests ─────────────────────────────────────────
+  app.get("/api/admin/warranty-requests", requireAdmin, async (req, res) => {
+    try {
+      const { search, status } = req.query;
+      let query = `
+        SELECT wr.*,
+          sn.serial_number,
+          c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+          u.name as reviewed_by_name
+        FROM warranty_requests wr
+        LEFT JOIN serial_numbers sn ON wr.serial_number_id = sn.id
+        LEFT JOIN customers c ON wr.customer_id = c.id
+        LEFT JOIN users u ON wr.reviewed_by = u.id
+        WHERE 1=1`;
+      const params: any[] = [];
+      let idx = 1;
+
+      if (status && status !== "all") {
+        query += ` AND wr.status = $${idx++}`;
+        params.push(status);
+      }
+      if (search) {
+        query += ` AND (wr.request_type ILIKE $${idx} OR wr.description ILIKE $${idx} OR sn.serial_number ILIKE $${idx} OR c.name ILIKE $${idx} OR c.email ILIKE $${idx})`;
+        params.push(`%${search}%`);
+        idx++;
+      }
+      query += ` ORDER BY wr.created_at DESC`;
+
+      const result = await pool.query(query, params);
+      return res.json({ ok: true, data: result.rows });
+    } catch (err: any) {
+      console.error("admin_warranty_requests_error", err);
+      return res.status(500).json({ ok: false, error: "server_error" });
+    }
+  });
+
+  // ── Admin: Update Retail Inquiry Status ───────────────────────────────
+  app.patch("/api/admin/retail-inquiries/:id", requireAdmin, async (req, res) => {
+    try {
+      const { status, admin_notes } = req.body;
+      const result = await pool.query(
+        `UPDATE retail_inquiries SET status = COALESCE($1, status), admin_notes = COALESCE($2, admin_notes), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *`,
+        [status, admin_notes, req.params.id]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ ok: false, error: "not_found" });
+      return res.json({ ok: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error("admin_retail_inquiry_update_error", err);
+      return res.status(500).json({ ok: false, error: "server_error" });
+    }
+  });
+
+  // ── Admin: Update Warranty Request Status ─────────────────────────────
+  app.patch("/api/admin/warranty-requests/:id", requireAdmin, async (req, res) => {
+    try {
+      const { status, admin_notes } = req.body;
+      const result = await pool.query(
+        `UPDATE warranty_requests SET status = COALESCE($1, status), admin_notes = COALESCE($2, admin_notes), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *`,
+        [status, admin_notes, req.params.id]
+      );
+      if (result.rows.length === 0) return res.status(404).json({ ok: false, error: "not_found" });
+      return res.json({ ok: true, data: result.rows[0] });
+    } catch (err: any) {
+      console.error("admin_warranty_update_error", err);
+      return res.status(500).json({ ok: false, error: "server_error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
