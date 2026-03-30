@@ -996,6 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           businessName,
           email,
           phone,
+          fflType: (req.body as any).fflType || null,
           quantity: quantityCans ? String(quantityCans) : null,
           description: message || null,
           fflFileName: isInquiry ? null : fflFileName,

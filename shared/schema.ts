@@ -25,6 +25,7 @@ export const submissions = pgTable("submissions", {
   email: text("email").notNull(),
   phone: text("phone"),
   fflLicenseNumber: text("ffl_license_number"),
+  fflType: text("ffl_type"),
   serialNumber: text("serial_number"),
   quantity: text("quantity"),
   description: text("description"),

@@ -16,6 +16,7 @@ const dealerFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   confirmEmail: z.string().email({ message: "Please confirm your email address." }),
   phone: z.string().min(13, { message: "Phone number is required." }),
+  fflType: z.string().optional(),
   quantityCans: z.string().optional(),
   message: z.string().optional(),
 }).refine((data) => data.email === data.confirmEmail, {
@@ -227,6 +228,19 @@ export default function DealerForm() {
               <FormItem>
                 <FormLabel>Phone Number {requestType === 'inquiry' && <span className="text-xs text-muted-foreground">(optional)</span>}</FormLabel>
                 <FormControl><Input placeholder="(555)123-4567" value={field.value} onChange={(e) => field.onChange(formatPhone(e.target.value))} className="bg-card border-border focus:border-primary" /></FormControl>
+                <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="fflType" render={({ field }) => (
+              <FormItem>
+                <FormLabel>FFL / SOT Type {requestType === 'inquiry' && <span className="text-xs text-muted-foreground">(optional)</span>}</FormLabel>
+                <FormControl>
+                  <select value={field.value ?? ""} onChange={field.onChange} className="w-full h-10 rounded-md bg-card border border-border px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">Select type...</option>
+                    <option value="Class 2 Manufacturer">Class 2 Manufacturer</option>
+                    <option value="Class 3 Dealer">Class 3 Dealer</option>
+                  </select>
+                </FormControl>
                 <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
               </FormItem>
             )} />
