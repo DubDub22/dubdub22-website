@@ -1252,12 +1252,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         params.push(`%${search}%`);
       }
 
-      const combined = `(${subQuery}) UNION ALL (${retailQuery}) ORDER BY created_at DESC`;
+      const combined = `SELECT * FROM ((${subQuery}) UNION ALL (${retailQuery})) AS combined ORDER BY created_at DESC`;
       const result = await pool.query(combined, params);
       return res.json({ ok: true, data: result.rows });
     } catch (err: any) {
       console.error("admin_dealer_inquiries_error", err);
       return res.status(500).json({ ok: false, error: "server_error" });
+    }
+  });
+
+  // Delete a dealer inquiry (supports both submission and retail_inquiry sources)
+  app.delete("/api/admin/dealer-inquiries/:source/:id", requireAdmin, async (req, res) => {
+    try {
+      const { source, id } = req.params;
+      if (source === "submission") {
+        await pool.query(`DELETE FROM submissions WHERE id = $1`, [id]);
+      } else if (source === "retail_inquiry") {
+        await pool.query(`DELETE FROM retail_inquiries WHERE id = $1`, [id]);
+      } else {
+        return res.status(400).json({ ok: false, error: "invalid_source" });
+      }
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error("delete_dealer_inquiry_error", err);
+      return res.status(500).json({ ok: false, error: "failed_to_delete" });
     }
   });
 

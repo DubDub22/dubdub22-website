@@ -1840,11 +1840,12 @@ function WarrantyTab({
 }
 
 function DealerInquiriesTab({
-  submissions, search, setSearch
+  submissions, search, setSearch, onDelete
 }: {
   submissions: Submission[];
   search: string;
   setSearch: (s: string) => void;
+  onDelete: (sub: Submission) => void;
 }) {
   const filtered = submissions.filter((sub) => {
     if (search) {
@@ -1875,6 +1876,9 @@ function DealerInquiriesTab({
                   <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-500 text-white">LEAD</span>
                   <span className="text-xs text-muted-foreground font-mono">{fmtDate(sub.createdAt)}</span>
                 </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium">{sub.businessName || "—"}</p>
@@ -1895,10 +1899,11 @@ function DealerInquiriesTab({
               <th className="px-3 py-2">Contact</th>
               <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">Phone</th>
+              <th className="px-3 py-2 w-10"></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">No dealer inquiries found.</td></tr>
+            {filtered.length === 0 ? <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No dealer inquiries found.</td></tr>
               : filtered.map(sub => (
                 <tr key={sub.id} className="border-b border-border hover:bg-secondary/10">
                   <td className="px-3 py-2 text-muted-foreground font-mono text-xs">{fmtDate(sub.createdAt)}</td>
@@ -1906,6 +1911,11 @@ function DealerInquiriesTab({
                   <td className="px-3 py-2">{sub.contactName || "—"}</td>
                   <td className="px-3 py-2">{sub.email || "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{sub.phone || "—"}</td>
+                  <td className="px-3 py-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
                 </tr>
               ))}
           </tbody>
@@ -1933,6 +1943,7 @@ export default function AdminPage() {
   const [warrantyStatus, setWarrantyStatus] = useState("all");
   const [dealerInquiries, setDealerInquiries] = useState<any[]>([]);
   const [dealerInquiriesSearch, setDealerInquiriesSearch] = useState("");
+  const [dealerInquiryDeleteTarget, setDealerInquiryDeleteTarget] = useState<any | null>(null);
 
   const pinForm = useForm<z.infer<typeof pinSchema>>({ resolver: zodResolver(pinSchema), defaultValues: { pin: "" } });
 
@@ -2049,6 +2060,17 @@ export default function AdminPage() {
       toast({ title: "Deleted", description: "Submission removed." });
     } catch { toast({ title: "Error", description: "Could not delete.", variant: "destructive" }); }
     finally { setDeleteTarget(null); }
+  };
+
+  const handleDealerInquiryDelete = async () => {
+    if (!dealerInquiryDeleteTarget) return;
+    try {
+      const res = await fetch(`/api/admin/dealer-inquiries/${dealerInquiryDeleteTarget.source}/${dealerInquiryDeleteTarget.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+      setDealerInquiries(prev => prev.filter(s => s.id !== dealerInquiryDeleteTarget.id));
+      toast({ title: "Deleted", description: "Dealer inquiry removed." });
+    } catch { toast({ title: "Error", description: "Could not delete.", variant: "destructive" }); }
+    finally { setDealerInquiryDeleteTarget(null); }
   };
 
 
@@ -2183,6 +2205,7 @@ export default function AdminPage() {
                 submissions={dealerInquiries}
                 search={dealerInquiriesSearch}
                 setSearch={setDealerInquiriesSearch}
+                onDelete={(sub) => setDealerInquiryDeleteTarget(sub)}
               />
             </CardContent>
           </Card>
@@ -2201,6 +2224,22 @@ export default function AdminPage() {
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 border-border">Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dealer Inquiry delete confirmation */}
+      <AlertDialog open={!!dealerInquiryDeleteTarget} onOpenChange={open => !open && setDealerInquiryDeleteTarget(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Dealer Inquiry?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This will permanently remove the inquiry from {dealerInquiryDeleteTarget?.businessName || dealerInquiryDeleteTarget?.contactName}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 border-border">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleDealerInquiryDelete}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
