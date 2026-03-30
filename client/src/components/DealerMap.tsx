@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { MapPin, X, Loader2, Phone, Mail, User, MessageSquare } from "lucide-react";
+import { MapPin, X, Loader2, Phone, Mail } from "lucide-react";
 import * as Dialog from "@radix-ui/react-dialog";
 
 // Custom colored marker icons for dealer tiers
@@ -83,47 +83,19 @@ interface Dealer {
   verified: boolean;
   email?: string;
   phone?: string;
-}
-
-// Geocode a zip code to lat/lng using Zippopotam
-async function geocodeZip(zip: string): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const lat = parseFloat(data.places[0].latitude);
-    const lng = parseFloat(data.places[0].longitude);
-    if (isNaN(lat) || isNaN(lng)) return null;
-    return { lat, lng };
-  } catch {
-    return null;
-  }
-}
-
-// Haversine distance in miles
-function haversineMiles(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number
-): number {
-  const R = 3958.8;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-    Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  lat?: number;
+  lng?: number;
+  _dist?: number;
+  _latlng?: [number, number];
 }
 
 const RADIUS_MILES = 50;
 const DEFAULT_CENTER: [number, number] = [39.5, -98.35];
 
 // Zoom map to show 50-mile circle around search coords
-function ZoomToRadius({ center, radius }: { center: [number, number]; radius: number }) {
+function ZoomToRadius({ center }: { center: [number, number] }) {
   const map = useMap();
   useEffect(() => {
-    // zoom level 8 gives roughly a 50-mile radius circle to fit nicely
     map.setView(center, 8, { animate: true, duration: 0.5 });
   }, [center, map]);
   return null;
@@ -132,67 +104,33 @@ function ZoomToRadius({ center, radius }: { center: [number, number]; radius: nu
 export default function DealerMap() {
   const { toast } = useToast();
   const [dealers, setDealers] = useState<Dealer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Zip search state
   const [searchZip, setSearchZip] = useState("");
   const [searchCoords, setSearchCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [searchingZip, setSearchingZip] = useState(false);
   const [searchedZip, setSearchedZip] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
   const [contactDealer, setContactDealer] = useState<Dealer | null>(null);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactMessage, setContactMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [nearestPreferred, setNearestPreferred] = useState<(Dealer & { _dist: number }) | null>(null);
 
-  // Load all dealers once
-  useEffect(() => {
-    async function loadDealers() {
-      try {
-        const resp = await fetch("/api/dealers/map");
-        const data = await resp.json();
-        if (!data.ok) throw new Error("Failed to load dealers");
-        // Attach coordinates to each dealer
-        const withCoords = await Promise.all(
-          (data.data || []).map(async (d: Dealer) => {
-            if ((d as any)._latlng) return d;
-            const coords = await geocodeZip(d.zip);
-            return { ...d, _latlng: coords };
-          })
-        );
-        setDealers(withCoords);
-      } catch {
-        toast({ title: "Could not load dealer map", variant: "destructive" });
-        setDealers([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadDealers();
-  }, [toast]);
-
-  // Dealers with coordinates
-  const mappableDealers = useMemo(
-    () => dealers.filter(d => (d as any)._latlng),
-    [dealers]
-  );
-
-  // Dealers within 50-mile radius of searched zip (sorted by distance)
-  const nearbyDealers = useMemo(() => {
-    if (!searchCoords) return [];
-    return mappableDealers
+  // Build lat/lng from DB coords
+  const mappableDealers = useMemo(() => {
+    return dealers
       .map(d => {
-        const ll = (d as any)._latlng as [number, number];
-        const dist = haversineMiles(searchCoords.lat, searchCoords.lng, ll[0], ll[1]);
-        return { ...d, _dist: dist };
+        if (d.lat != null && d.lng != null) {
+          return { ...d, _latlng: [d.lat, d.lng] as [number, number] };
+        }
+        return null;
       })
-      .filter(d => d._dist <= RADIUS_MILES)
-      .sort((a, b) => a._dist - b._dist);
-  }, [mappableDealers, searchCoords]);
-
-  // Show all dealers if no search; otherwise show only nearby
-  const visibleDealers = searchCoords ? nearbyDealers : mappableDealers;
+      .filter(Boolean) as Dealer[];
+  }, [dealers]);
 
   async function handleZipSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -202,22 +140,43 @@ export default function DealerMap() {
       return;
     }
     setSearchingZip(true);
-    const coords = await geocodeZip(zip);
-    if (!coords) {
-      toast({ title: "Could not find that zip code", variant: "destructive" });
-      setSearchCoords(null);
-    } else {
-      setSearchCoords(coords);
+    setLoading(true);
+    try {
+      const resp = await fetch(`/api/dealers/nearby?zip=${zip}`);
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Could not find dealers");
+      setSearchCoords(data.searchCoords);
       setSearchedZip(zip);
-      toast({ title: `Showing dealers within ${RADIUS_MILES} mi of ${zip}`, duration: 3000 });
+      setHasSearched(true);
+      setNearestPreferred(data.nearestPreferred);
+      // Attach _latlng from DB coords
+      const withCoords = (data.dealers as Dealer[]).map((d: Dealer) => ({
+        ...d,
+        _latlng: d.lat != null && d.lng != null ? [d.lat, d.lng] as [number, number] : undefined,
+      }));
+      setDealers(withCoords);
+      toast({
+        title: `Showing nearest ${data.dealers.length} dealers near ${zip}`,
+        duration: 4000,
+      });
+    } catch (err: any) {
+      toast({ title: err.message || "Could not find dealers for that zip code", variant: "destructive" });
+      setSearchCoords(null);
+      setHasSearched(false);
+      setDealers([]);
+    } finally {
+      setSearchingZip(false);
+      setLoading(false);
     }
-    setSearchingZip(false);
   }
 
   function clearZipSearch() {
     setSearchZip("");
     setSearchCoords(null);
     setSearchedZip("");
+    setHasSearched(false);
+    setDealers([]);
+    setNearestPreferred(null);
   }
 
   function formatPhone(phone?: string) {
@@ -251,7 +210,7 @@ export default function DealerMap() {
           >
             {searchingZip ? <Loader2 className="w-4 h-4 animate-spin" /> : "Find Dealers"}
           </Button>
-          {searchCoords && (
+          {hasSearched && (
             <Button
               type="button"
               variant="ghost"
@@ -265,20 +224,24 @@ export default function DealerMap() {
       </div>
 
       {/* Results summary */}
-      {!loading && (
+      {hasSearched && !loading && (
         <p className="text-center text-sm text-muted-foreground mb-3">
-          {searchCoords
-            ? `${nearbyDealers.length} dealer${nearbyDealers.length !== 1 ? "s" : ""} within ${RADIUS_MILES} miles of ${searchedZip}`
-            : `${mappableDealers.length} dealer${mappableDealers.length !== 1 ? "s" : ""} on map`}
+          Nearest {dealers.length} dealers to {searchedZip}
         </p>
       )}
 
-      {/* Map */}
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      {/* Prompt when no search yet */}
+      {!hasSearched && !loading && (
+        <div className="rounded-xl border border-border shadow-xl flex items-center justify-center" style={{ height: "500px", background: "hsl(var(--card))" }}>
+          <div className="text-center">
+            <MapPin className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+            <p className="text-muted-foreground">Enter your zip code above to find dealers near you.</p>
+          </div>
         </div>
-      ) : (
+      )}
+
+      {/* Map */}
+      {(loading || hasSearched) && (
         <div className="rounded-xl overflow-hidden border border-border shadow-xl" style={{ height: "500px" }}>
           <MapContainer
             center={searchCoords ? [searchCoords.lat, searchCoords.lng] as [number, number] : DEFAULT_CENTER}
@@ -291,7 +254,6 @@ export default function DealerMap() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {/* 50-mile radius circle when zip searched */}
             {searchCoords && (
               <Circle
                 center={[searchCoords.lat, searchCoords.lng]}
@@ -301,13 +263,10 @@ export default function DealerMap() {
             )}
 
             {searchCoords && (
-              <ZoomToRadius
-                center={[searchCoords.lat, searchCoords.lng]}
-                radius={RADIUS_MILES}
-              />
+              <ZoomToRadius center={[searchCoords.lat, searchCoords.lng]} />
             )}
 
-            {visibleDealers.map(dealer => (
+            {mappableDealers.map(dealer => (
               <Marker
                 key={dealer.id}
                 // @ts-expect-error custom property
@@ -327,19 +286,88 @@ export default function DealerMap() {
                 </Popup>
               </Marker>
             ))}
-
-            {/* Fit bounds when no zip search */}
-            {!searchCoords && visibleDealers.length > 0 && (
-              <FitBoundsOnLoad dealers={visibleDealers} />
-            )}
           </MapContainer>
         </div>
       )}
 
       {/* Dealer list below map */}
-      {!loading && visibleDealers.length > 0 && (
+      {!loading && dealers.length > 0 && (
         <div className="mt-6 space-y-3">
-          {visibleDealers.map(dealer => {
+          {/* Featured: nearest Preferred dealer */}
+          {nearestPreferred && nearestPreferred.id !== dealers[0]?.id && (
+            <Card className="bg-primary/5 border-primary/30 p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                  <span className="text-primary font-bold text-lg">★</span>
+                </div>
+                <div>
+                  <p className="text-xs text-primary font-semibold uppercase tracking-wide">Nearest Preferred Dealer</p>
+                  <p className="font-bold text-foreground text-lg leading-tight">{nearestPreferred.business_name}</p>
+                  <p className="text-sm text-muted-foreground">{nearestPreferred.city}, {nearestPreferred.state} {nearestPreferred.zip} · {nearestPreferred._dist} mi</p>
+                </div>
+              </div>
+              <div className="flex gap-2 sm:ml-auto shrink-0">
+                {nearestPreferred.phone && (
+                  <a
+                    href={`tel:${nearestPreferred.phone}`}
+                    className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-bold px-4 py-2 rounded transition-colors"
+                  >
+                    <Phone className="w-3.5 h-3.5" /> Call
+                  </a>
+                )}
+                {nearestPreferred.email && nearestPreferred.email.includes("@") && (
+                  <Dialog.Root open={contactDealer?.id === nearestPreferred.id} onOpenChange={(open) => setContactDealer(open ? nearestPreferred : null)}>
+                    <Dialog.Trigger asChild>
+                      <button
+                        className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-bold px-4 py-2 rounded transition-colors cursor-pointer border-0"
+                        onClick={(e) => { e.stopPropagation(); setContactDealer(nearestPreferred); }}
+                      >
+                        <Mail className="w-3.5 h-3.5" /> Contact
+                      </button>
+                    </Dialog.Trigger>
+                    <Dialog.Portal>
+                      <Dialog.Overlay className="fixed inset-0 bg-black/50 z-40" />
+                      <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-card border-border rounded-xl p-6 w-full max-w-md z-50 shadow-xl">
+                        <Dialog.Title className="text-lg font-bold mb-4">Contact Dealer</Dialog.Title>
+                        <p className="text-sm text-muted-foreground mb-4">Send a message to {nearestPreferred.business_name}</p>
+                        <form onSubmit={(e) => { e.preventDefault(); handleContactSubmit(nearestPreferred.id); }}>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-sm font-medium mb-1 block">Your Name</label>
+                              <input type="text" required value={contactName} onChange={(e) => setContactName(e.target.value)} className="w-full border border-border rounded px-3 py-2 text-sm bg-background" placeholder="Full name" />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-1 block">Email</label>
+                              <input type="email" required value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} className="w-full border border-border rounded px-3 py-2 text-sm bg-background" placeholder="you@example.com" />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-1 block">Phone</label>
+                              <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className="w-full border border-border rounded px-3 py-2 text-sm bg-background" placeholder="Optional" />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-1 block">Message</label>
+                              <textarea required rows={3} value={contactMessage} onChange={(e) => setContactMessage(e.target.value)} className="w-full border border-border rounded px-3 py-2 text-sm bg-background resize-none" placeholder="I'm interested in the DubDub22 suppressor..." />
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-4">
+                            <button type="submit" disabled={submitting} className="flex-1 bg-primary text-primary-foreground font-bold px-4 py-2 rounded hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer">
+                              {submitting ? "Sending…" : "Send Message"}
+                            </button>
+                            <Dialog.Close asChild>
+                              <button type="button" onClick={() => { setContactDealer(null); setContactName(""); setContactEmail(""); setContactPhone(""); setContactMessage(""); }} className="px-4 py-2 border border-border rounded hover:bg-muted transition-colors cursor-pointer">Cancel</button>
+                            </Dialog.Close>
+                          </div>
+                        </form>
+                      </Dialog.Content>
+                    </Dialog.Portal>
+                  </Dialog.Root>
+                )}
+              </div>
+            </Card>
+          )}
+          {dealers
+            .filter(d => d.id !== nearestPreferred?.id)
+            .map(dealer => {
             const phone = formatPhone(dealer.phone);
             const hasEmail = dealer.email && dealer.email.includes("@");
             return (
@@ -441,7 +469,7 @@ export default function DealerMap() {
                                 <Input type="email" required value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="john@example.com" />
                               </div>
                               <div>
-                                <label className="text-sm fontlighter mb-1 block">Your Phone</label>
+                                <label className="text-sm font-medium mb-1 block">Your Phone</label>
                                 <Input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="(555) 555-5555" />
                               </div>
                               <div>
@@ -480,31 +508,11 @@ export default function DealerMap() {
         </div>
       )}
 
-      {!loading && visibleDealers.length === 0 && (
+      {!loading && hasSearched && dealers.length === 0 && (
         <p className="text-center text-muted-foreground py-12">
-          {searchCoords
-            ? `No dealers within ${RADIUS_MILES} miles of ${searchedZip}. Try a different zip code.`
-            : "No dealers found."}
+          No dealers found. Try a different zip code.
         </p>
       )}
     </>
   );
-}
-
-function FitBoundsOnLoad({ dealers }: { dealers: Dealer[] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (dealers.length === 0) return;
-    const coords = dealers
-      .map(d => (d as any)._latlng as [number, number] | undefined)
-      .filter(Boolean) as [number, number][];
-    if (coords.length === 0) return;
-    if (coords.length === 1) {
-      map.setView(coords[0], 10);
-    } else {
-      const bounds = L.latLngBounds(coords);
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
-    }
-  }, [dealers, map]);
-  return null;
 }

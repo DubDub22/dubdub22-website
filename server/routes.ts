@@ -15,6 +15,24 @@ const GMAIL_TOKEN_PATH = "/home/dubdub/DubDub-Hub/gmail_token.json";
 const ENV_PATH = "/home/dubdub/DubDub-Hub/.env";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Geocoding helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function geocodeZip(zip: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(`https://api.zippopotam.us/us/${zip}`);
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    const lat = parseFloat(data.places[0].latitude);
+    const lng = parseFloat(data.places[0].longitude);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // OCR / Parse helpers — shared by file-upload routes and parse-* routes
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -496,6 +514,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ ok: true, data: result.rows });
     } catch (err: any) {
       console.error("get_dealers_map_error", err);
+      return res.status(500).json({ ok: false, error: "failed_to_fetch" });
+    }
+  });
+
+  // Public: Dealers near a zip code (lazy-load — only fetched on zip search)
+  // GET /api/dealers/nearby?zip=XXXXX
+  // Returns nearest 20 FFLs total, plus the nearest Preferred dealer separately
+  app.get("/api/dealers/nearby", async (req, res) => {
+    try {
+      const zip = (req.query.zip as string || "").replace(/\D/g, "");
+      if (zip.length !== 5) {
+        return res.status(400).json({ ok: false, error: "invalid_zip" });
+      }
+
+      // Geocode the search zip
+      const searchCoords = await geocodeZip(zip);
+      if (!searchCoords) {
+        return res.status(404).json({ ok: false, error: "zip_not_found" });
+      }
+      const { lat: lat1, lng: lng1 } = searchCoords;
+
+      // Fetch all dealers that have coordinates
+      const result = await pool.query(`
+        SELECT id, business_name, city, state, zip, tier, verified, email, phone, lat, lng
+        FROM dealers
+        WHERE lat IS NOT NULL AND lng IS NOT NULL
+      `);
+
+      const R = 3958.8; // Earth radius in miles
+      const DEG = Math.PI / 180;
+
+      // Compute haversine distance for all dealers
+      const withDist = result.rows
+        .map(row => {
+          const dLat = ((row.lat as number) - lat1) * DEG;
+          const dLng = ((row.lng as number) - lng1) * DEG;
+          const a =
+            Math.sin(dLat / 2) ** 2 +
+            Math.cos(lat1 * DEG) * Math.cos((row.lat as number) * DEG) * Math.sin(dLng / 2) ** 2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return { ...row, _dist: Math.round(dist * 10) / 10 };
+        })
+        .sort((a, b) => a._dist - b._dist);
+
+      // Nearest 20 FFLs (all tiers)
+      const nearest20 = withDist.slice(0, 20);
+
+      // Nearest Preferred dealer (may or may not be in the top 20)
+      const nearestPreferred = withDist.find(d => d.tier === "Preferred") || null;
+
+      return res.json({
+        ok: true,
+        searchZip: zip,
+        searchCoords,
+        dealers: nearest20,
+        nearestPreferred,
+      });
+    } catch (err: any) {
+      console.error("get_dealers_nearby_error", err);
       return res.status(500).json({ ok: false, error: "failed_to_fetch" });
     }
   });
