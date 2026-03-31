@@ -21,6 +21,7 @@ const dealerApplySchema = z.object({
   fflNumber: z.string().min(9, "Valid FFL number is required"),
   fflExpiry: z.string().optional(),
   ein: z.string().optional(),
+  contactPhone: z.string().optional(),
   message: z.string().optional(),
 });
 
@@ -207,7 +208,7 @@ function PendingUpload(props: { fflNumber: string }) {
 
 // ─── Dealer Form (verified FFL — place order or inquiry) ───────────────────────
 
-function DealerForm(props: { fflNumber: string; dealerName?: string; email?: string; expiry?: string }) {
+function DealerForm(props: { fflNumber: string; dealerName?: string; email?: string; phone?: string; expiry?: string }) {
   const { toast } = useToast();
   const [orderKind, setOrderKind] = useState<"inquiry" | "demo" | "stocking">("inquiry");
   const [quantityCans, setQuantityCans] = useState("5");
@@ -223,6 +224,7 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
       fflNumber: props.fflNumber,
       fflExpiry: props.expiry || "",
       ein: "",
+      contactPhone: props.phone || "",
       message: "",
     },
   });
@@ -437,6 +439,22 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
           />
           <FormField
             control={form.control}
+            name="contactPhone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contact Phone <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel>
+                <FormControl>
+                  <Input {...field} type="tel" placeholder="(555) 555-5555" className="bg-card border-border" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
             name="ein"
             render={({ field }) => (
               <FormItem>
@@ -542,6 +560,8 @@ export default function ApplyPage() {
   const [params] = useSearchParams();
   const ffl = params.get("ffl") || "";
   const dealerName = params.get("name") || "";
+  const email = params.get("email") || "";
+  const phone = params.get("phone") || "";
   const expiry = params.get("expiry") || "";
   const pending = params.get("pending") === "1";
 
@@ -588,7 +608,7 @@ export default function ApplyPage() {
             {pending ? (
               <PendingUpload fflNumber={ffl} />
             ) : (
-              <DealerForm fflNumber={ffl} dealerName={dealerName} expiry={expiry} />
+              <DealerForm fflNumber={ffl} dealerName={dealerName} email={email} phone={phone} expiry={expiry} />
             )}
           </motion.div>
         </div>

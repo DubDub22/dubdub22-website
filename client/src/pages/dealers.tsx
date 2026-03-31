@@ -41,7 +41,9 @@ export default function DealersPage() {
         setTimeout(() => {
           const fullFfl = data.fflLicenseNumber || ffl;
           const expiry = data.fflExpiry || "";
-          window.location.href = `/apply?ffl=${encodeURIComponent(fullFfl)}&name=${encodeURIComponent(data.dealerName || "")}&expiry=${encodeURIComponent(expiry)}`;
+          const email = data.email || "";
+          const phone = data.phone || "";
+          window.location.href = `/apply?ffl=${encodeURIComponent(fullFfl)}&name=${encodeURIComponent(data.dealerName || "")}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&expiry=${encodeURIComponent(expiry)}`;
         }, 1500);
       } else {
         setStatus("not-found");
