@@ -1039,7 +1039,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/dealer-request", async (req, res) => {
     try {
-      const { requestType, dealerName, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, sotFileName, sotFileData, message, orderKind, fflNumber, ein } = req.body || {};
+      const { requestType, dealerName, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, sotFileName, sotFileData, message, orderKind, fflNumber, ein, resaleFileName, resaleFileData, taxFormFileName, taxFormFileData } = req.body || {};
 
       // Support new field names from dealer portal (dealerName/fflNumber) and legacy (businessName/fflType)
       const bizName = dealerName || businessName || "";
@@ -1127,6 +1127,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isInquiry ? "" : `Quantity: ${quantityCans}${isDemoOrder ? ' (DEMO CAN)' : isStockingOrder ? ' (STOCKING ORDER)' : ''}`,
         isInquiry ? "" : `FFL on File: ${fflFileName || "Not provided"}`,
         isInquiry ? "" : `SOT: ${sotFileName || "Not provided"}`,
+        isInquiry ? "" : `Resale Certificate: ${resaleFileName || "Not provided"}`,
+        isInquiry ? "" : `Multi-State Tax Form: ${taxFormFileName || "Not provided"}`,
         message ? `\nMessage:\n${message}` : "",
       ].filter(Boolean).join("\n");
 
@@ -1186,7 +1188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Upload documents to 3dprintmanager via SFTP (non-blocking)
       if (!isInquiry && fflNumber && (fflFileData || sotFileData)) {
-        uploadDealerDocuments(fflNumber, { fflFileData, fflFileName, sotFileData, sotFileName }).catch(err =>
+        uploadDealerDocuments(fflNumber, { fflFileData, fflFileName, sotFileData, sotFileName, resaleFileData, resaleFileName, taxFormFileData, taxFormFileName }).catch(err =>
           console.error("sftp_upload_dealer_docs_error", err)
         );
       }

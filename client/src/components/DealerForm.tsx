@@ -145,22 +145,31 @@ export default function DealerForm() {
       return;
     }
     const fflInput = document.getElementById("fflUpload") as HTMLInputElement | null;
-    const selectedFile = fflInput?.files?.[0] || null;
-    const fflName = selectedFile?.name || "No file attached";
-    if (requestType === 'order' && !selectedFile) {
+    const resaleInput = document.getElementById("resaleUpload") as HTMLInputElement | null;
+    const taxFormInput = document.getElementById("taxFormUpload") as HTMLInputElement | null;
+    const fflFile = fflInput?.files?.[0] || null;
+    const resaleFile = resaleInput?.files?.[0] || null;
+    const taxFormFile = taxFormInput?.files?.[0] || null;
+    const fflName = fflFile?.name || "No file attached";
+    if (requestType === 'order' && !fflFile) {
       toast({ title: "FFL / SOT Required", description: "Please attach your SOT file before submitting.", variant: "destructive" });
       return;
     }
     try {
-      let fileBase64: string | undefined;
-      if (selectedFile) fileBase64 = await processImage(selectedFile);
+      const [fflBase64, resaleBase64, taxFormBase64] = await Promise.all([
+        processImage(fflFile),
+        processImage(resaleFile),
+        processImage(taxFormFile),
+      ]);
       const resp = await fetch('/api/dealer-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...values, confirmEmail: undefined,
           requestType: requestType === 'inquiry' ? 'Dealer Inquiry' : 'Dealer Order',
-          fflFileName: fflName, fflFileData: fileBase64,
+          fflFileName: fflName, fflFileData: fflBase64,
+          resaleFileName: resaleFile?.name, resaleFileData: resaleBase64,
+          taxFormFileName: taxFormFile?.name, taxFormFileData: taxFormBase64,
         }),
       });
       const data = await resp.json().catch(() => ({}));
@@ -184,6 +193,8 @@ export default function DealerForm() {
       form.reset({ contactName: "", businessName: "", email: "", confirmEmail: "", phone: "", quantityCans: "5" });
       setRequestType('none');
       if (fflInput) fflInput.value = "";
+      if (resaleInput) resaleInput.value = "";
+      if (taxFormInput) taxFormInput.value = "";
     } catch {
       toast({ title: "Send Failed", description: "Could not send request. Please try again.", variant: "destructive" });
     }
@@ -255,6 +266,8 @@ export default function DealerForm() {
                   </FormControl><FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" /></FormItem>
                 )} />
                 <FileInputZone id="fflUpload" label="SOT Upload" accept=".pdf,.png,.jpg,.jpeg" required={true} description="Accepted: PDF, PNG, JPG/JPEG" />
+                <FileInputZone id="resaleUpload" label="Resale Certificate" accept=".pdf,.png,.jpg,.jpeg" required={false} description="Accepted: PDF, PNG, JPG/JPEG" />
+                <FileInputZone id="taxFormUpload" label="Multi-State Tax Form" accept=".pdf,.png,.jpg,.jpeg" required={false} description="Accepted: PDF, PNG, JPG/JPEG" />
               </>
             )}
             {requestType === 'inquiry' && (
