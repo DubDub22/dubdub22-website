@@ -7,6 +7,7 @@ import path from "path";
 import session from "express-session";
 import { storage } from "./storage";
 import { pool } from "./db";
+import { loadFFLMaster, validateFFL } from "./ffl-master";
 
 const SALES_EMAIL = "info@dubdub22.com";
 const WARRANTY_EMAIL = "info@dubdub22.com";
@@ -296,6 +297,9 @@ async function sendViaGmail({
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Load FFL master list
+  await loadFFLMaster();
+
   // Ensure auth tables exist
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_pin_requests (
@@ -902,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Normalize FFL (remove dashes)
       const normalized = fflNumber.replace(/[^0-9A-Za-z]/gi, "").toUpperCase();
 
-      // Check against dealers table first
+      // Check against verified dealers table first
       const dealer = await pool.query(
         `SELECT id, business_name, verified FROM dealers WHERE UPPER(REPLACE(REPLACE(ffl_license_number, '-', ''), ' ', '')) = $1`,
         [normalized]
@@ -912,8 +916,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ ok: true, valid: true, dealerName: dealer.rows[0].business_name });
       }
 
-      // TODO: Check against MASTER FFL CSV once uploaded
-      // For now, return not found — will route to pending upload
+      // Check against MASTER FFL CSV
+      const csvRecord = validateFFL(fflNumber);
+      if (csvRecord) {
+        return res.json({
+          ok: true,
+          valid: true,
+          dealerName: csvRecord.businessName,
+          fromMasterList: true,
+          fflRecord: csvRecord,
+        });
+      }
+
+      // Not found — route to pending upload
       return res.json({ ok: true, valid: false });
     } catch (err: any) {
       console.error("ffl_validate_error", err);
