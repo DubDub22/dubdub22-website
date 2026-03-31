@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import SiteHeader from "@/components/SiteHeader";
 
 // Asset Imports
 import fullSide from "@assets/Screenshot 2025-11-25 at 2.00.44 AM_1764054189439.png";
@@ -379,61 +380,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden selection:bg-primary selection:text-primary-foreground">
-      {/* Navigation */}
-      <motion.nav
-        initial={{ y: "-100%" }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        style={{ boxShadow: navShadow }}
-        className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-white/5"
-      >
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="font-display font-bold text-2xl tracking-wider text-primary drop-shadow-sm">DUBDUB22</div>
-          <div className="hidden md:flex gap-8 font-sans text-sm font-medium text-muted-foreground">
-            <button onClick={() => scrollToSection('features')} className="group relative hover:text-primary transition-colors py-1">
-              FEATURES
-              <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-primary transition-all duration-300 group-hover:w-full"></span>
-            </button>
-            <button onClick={() => scrollToSection('specs')} className="group relative hover:text-primary transition-colors py-1">
-              SPECS
-              <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-primary transition-all duration-300 group-hover:w-full"></span>
-            </button>
-            <button onClick={() => scrollToSection('gallery')} className="group relative hover:text-primary transition-colors py-1">
-              GALLERY
-              <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-primary transition-all duration-300 group-hover:w-full"></span>
-            </button>
-          </div>
-          <div className="hidden sm:flex gap-3">
-            <MotionWrapButton>
-              <Button
-                variant="outline"
-                className="border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground font-display uppercase tracking-wide cursor-pointer"
-                onClick={() => window.location.href = '/dealers'}
-              >
-                Find a Dealer
-              </Button>
-            </MotionWrapButton>
-            <MotionWrapButton>
-              <Button
-                variant="outline"
-                className="border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground font-display uppercase tracking-wide cursor-pointer"
-                onClick={() => window.location.href = '/apply'}
-              >
-                Become a Dealer
-              </Button>
-            </MotionWrapButton>
-            <MotionWrapButton>
-              <Button
-                variant="outline"
-                className="border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground font-display uppercase tracking-wide cursor-pointer"
-                onClick={() => window.location.href = '/warranty'}
-              >
-                Warranty Service
-              </Button>
-            </MotionWrapButton>
-          </div>
-        </div>
-      </motion.nav>
+      <SiteHeader variant="home" />
 
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center pt-16 bg-grid-pattern overflow-hidden">
@@ -717,7 +664,7 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-8">
             <motion.div variants={fadeUpItem}>
               <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full"
-                onClick={() => window.location.href = '/dealers'}>
+                onClick={() => window.location.href = '/find'}>
                 <h2 className="text-3xl font-bold mb-4">FIND A DEALER</h2>
                 <p className="text-muted-foreground text-lg leading-relaxed mb-6">
                   Use our dealer locator to find a DubDub22 dealer near you.

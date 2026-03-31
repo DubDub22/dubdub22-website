@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 
 import DealersPage from "@/pages/dealers";
+import FindPage from "@/pages/find";
 import ApplyPage from "@/pages/apply";
 import WarrantyPage from "@/pages/warranty";
 import AdminPage from "@/pages/admin";
@@ -17,6 +18,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dealers" component={DealersPage} />
+      <Route path="/find" component={FindPage} />
       <Route path="/apply" component={ApplyPage} />
       <Route path="/warranty" component={WarrantyPage} />
       <Route path="/order" component={OrderPage} />
