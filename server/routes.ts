@@ -936,6 +936,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           valid: true,
           dealerName: csvRecord.businessName,
           fromMasterList: true,
+          fflLicenseNumber: csvRecord.fflNumber,
+          fflExpiry: csvRecord.expiry || "",
+          email: csvRecord.email || "",
+          phone: csvRecord.phone || "",
           fflRecord: csvRecord,
         });
       }
