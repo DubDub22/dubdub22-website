@@ -391,7 +391,37 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
           />
         </div>
 
-        {/* ── FFL / EIN / Email / Expiry ── */}
+        {/* ── Email / Phone ── */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contact Email</FormLabel>
+                <FormControl>
+                  <Input {...field} type="email" placeholder="dealer@example.com" className="bg-card border-border" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="contactPhone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Contact Phone <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel>
+                <FormControl>
+                  <Input {...field} type="tel" placeholder="(555) 555-5555" className="bg-card border-border" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* ── FFL / Expiry / EIN ── */}
         <div className="grid md:grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -416,35 +446,6 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
                 </FormLabel>
                 <FormControl>
                   <Input {...field} placeholder="MM/DD/YYYY" className="bg-card border-border" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Contact Email</FormLabel>
-                <FormControl>
-                  <Input {...field} type="email" placeholder="dealer@example.com" className="bg-card border-border" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="contactPhone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Contact Phone <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel>
-                <FormControl>
-                  <Input {...field} type="tel" placeholder="(555) 555-5555" className="bg-card border-border" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
