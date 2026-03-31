@@ -1044,14 +1044,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       if (existingDealer.rows.length > 0) {
         dealerId = existingDealer.rows[0].id;
+        // Upgrade to Preferred tier on any submission
+        await pool.query(
+          `UPDATE dealers SET tier = 'Preferred', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND tier = 'Standard'`,
+          [dealerId]
+        );
       } else {
         const newDealer = await pool.query(
           `INSERT INTO dealers (business_name, contact_name, email, phone, source, tier)
-           VALUES ($1, $2, $3, $4, 'web_form', 'Standard')
+           VALUES ($1, $2, $3, $4, 'web_form', 'Preferred')
            RETURNING id`,
           [businessName, contactName, email.toLowerCase(), phone || null]
         );
         dealerId = newDealer.rows[0].id;
+      }
+
+      // Mark demo_ordered = true on demo orders (one-way flag)
+      if (isDemoOrder) {
+        await pool.query(
+          `UPDATE dealers SET demo_ordered = true WHERE id = $1`,
+          [dealerId]
+        );
       }
 
       const body = [
