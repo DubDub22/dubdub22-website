@@ -729,6 +729,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Serve master FFL CSV from disk (pre-cleaned, no banned states)
+  app.get("/api/admin/dealers/export/master_ffl", requireAdmin, async (_req, res) => {
+    const path = "/home/dubdub/DubDubSuppressor/ffl_master.csv";
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="ffl_master_2026-04-01.csv"`);
+    return res.sendFile(path, (err) => {
+      if (err) {
+        console.error("master_ffl_export_error", err);
+        res.status(500).json({ ok: false, error: "export_failed" });
+      }
+    });
+  });
+
   // Export non-ATF dealers by source as CSV
   app.get("/api/admin/dealers/export/:source", requireAdmin, async (req, res) => {
     try {
@@ -774,19 +787,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("export_dealers_error", err);
       return res.status(500).json({ ok: false, error: "export_failed" });
     }
-  });
-
-  // Serve master FFL CSV from disk (pre-cleaned, no banned states)
-  app.get("/api/admin/dealers/export/master_ffl", requireAdmin, async (_req, res) => {
-    const path = "/home/dubdub/DubDubSuppressor/ffl_master.csv";
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="ffl_master_2026-04-01.csv"`);
-    return res.sendFile(path, (err) => {
-      if (err) {
-        console.error("master_ffl_export_error", err);
-        res.status(500).json({ ok: false, error: "export_failed" });
-      }
-    });
   });
 
   // Parse SOT file — extract text from PDF/image and return structured data
