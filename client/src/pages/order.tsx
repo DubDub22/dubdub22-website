@@ -357,10 +357,10 @@ export default function OrderPage() {
                 <CheckCircle className="w-5 h-5 shrink-0" />
                 <span className="font-medium">
                   {intent === "info"
-                    ? "Submitted — we'll be in touch shortly."
+                    ? "We got your message — the minions will get on it shortly."
                     : intent === "demo"
-                    ? "Demo request submitted — we'll be in touch."
-                    : "Order submitted — invoice incoming shortly."}
+                    ? "We got your message — the minions will get on it shortly."
+                    : "We got your message — the minions will get on it shortly."}
                 </span>
               </div>
             ) : (

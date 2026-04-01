@@ -364,7 +364,7 @@ function WarrantyForm() {
         {submitted ? (
           <div className="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400">
             <CheckCircle className="w-5 h-5 shrink-0" />
-            <span className="font-medium">Submitted — we'll be in touch within 24-48 hours.</span>
+            <span className="font-medium">We got your message — the minions will get on it shortly.</span>
           </div>
         ) : (
           <MotionWrapButton className="w-full">
