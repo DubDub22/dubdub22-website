@@ -1934,6 +1934,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const { name, email, subject, message } = req.body || {};
+      if (!name || !email || !subject || !message) {
+        return res.status(400).json({ ok: false, error: "missing_required_fields" });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ ok: false, error: "invalid_email" });
+      }
+
+      const body = [
+        `Name: ${name}`,
+        `Email: ${email}`,
+        `Subject: ${subject}`,
+        ``,
+        `Message:`,
+        message,
+      ].join("\n");
+
+      await sendViaGmail({
+        to: SALES_EMAIL,
+        bcc: BCC_EMAIL,
+        subject: `Contact Form — ${subject}`,
+        text: body,
+        replyTo: email,
+      });
+
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error("contact_api_error", err);
+      return res.status(500).json({ ok: false, error: err?.message || "server_error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 
 const warrantyFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -319,16 +320,7 @@ export default function WarrantyPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-12 border-t border-border bg-card/50">
-        <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-2xl font-display font-bold tracking-wider drop-shadow-sm">DUBDUB22.COM</div>
-          <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} DubDub22. All rights reserved.
-            <br className="md:hidden" /> Designed by shooters, for shooters.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

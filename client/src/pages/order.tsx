@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import SiteFooter from "@/components/SiteFooter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -386,6 +387,7 @@ export default function OrderPage() {
           </form>
         </Form>
       </main>
+      <SiteFooter />
     </div>
   );
 }

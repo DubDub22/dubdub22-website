@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import SiteHeader from "@/components/SiteHeader";
+import SiteFooter from "@/components/SiteFooter";
 import { useToast } from "@/hooks/use-toast";
 import { useSearchParams } from "wouter";
 
@@ -311,6 +312,7 @@ export default function OrderConfirmationPage() {
           </Button>
         </motion.div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

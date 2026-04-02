@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowDown, Wind, Wrench, Feather, Crosshair, UploadCloud, Loader2, CheckCircle } from "lucide-react";
+import SiteFooter from "@/components/SiteFooter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -724,16 +725,7 @@ export default function Home() {
         </div>
       </motion.section>
 
-      {/* Footer */}
-      <footer className="py-12 border-t border-border bg-card/50">
-        <div className="container mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="text-2xl font-display font-bold tracking-wider drop-shadow-sm">DUBDUB22.COM</div>
-          <p className="text-muted-foreground text-sm">
-            © {new Date().getFullYear()} DubDub22. All rights reserved.
-            <br className="md:hidden" /> Designed by shooters, for shooters.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

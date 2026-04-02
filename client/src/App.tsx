@@ -14,6 +14,8 @@ import WarrantyPage from "@/pages/warranty";
 import AdminPage from "@/pages/admin";
 import OrderPage from "@/pages/order";
 import OrderConfirmationPage from "@/pages/order-confirmation";
+import ContactPage from "@/pages/contact";
+import InTheWildPage from "@/pages/in-the-wild";
 
 function Router() {
   return (
@@ -26,6 +28,8 @@ function Router() {
       <Route path="/order" component={OrderPage} />
       <Route path="/order-confirmation" component={OrderConfirmationPage} />
       <Route path="/admin" component={AdminPage} />
+      <Route path="/contact" component={ContactPage} />
+      <Route path="/in-the-wild" component={InTheWildPage} />
       <Route path="/upload-tax-form" component={UploadTaxFormPage} />
       <Route component={NotFound} />
     </Switch>

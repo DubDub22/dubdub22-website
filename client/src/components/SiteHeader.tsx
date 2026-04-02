@@ -17,6 +17,7 @@ const navLinks = [
   { label: "Find a Dealer", href: "/find" },
   { label: "Dealers", href: "/dealers" },
   { label: "Warranty Service", href: "/warranty" },
+  { label: "In The Wild", href: "/in-the-wild" },
 ];
 
 const homeLinks = [
