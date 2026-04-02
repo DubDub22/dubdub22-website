@@ -263,11 +263,11 @@ export default function DealerMap() {
 
       {/* Map */}
       {(loading || hasSearched) && (
-        <div className="rounded-xl overflow-hidden border border-border shadow-xl" style={{ height: "500px" }}>
+        <div className="rounded-xl overflow-hidden border border-border shadow-xl" style={{ height: "500px", zIndex: 1 }}>
           <MapContainer
             center={searchCoords ? [searchCoords.lat, searchCoords.lng] as [number, number] : DEFAULT_CENTER}
             zoom={searchCoords ? 8 : 4}
-            style={{ height: "100%", width: "100%" }}
+            style={{ height: "100%", width: "100%", zIndex: 1 }}
             scrollWheelZoom={true}
           >
             <TileLayer
