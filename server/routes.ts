@@ -11,7 +11,8 @@ import { pool } from "./db";
 import { loadFFLMaster, validateFFL } from "./ffl-master";
 
 const SALES_EMAIL = "info@dubdub22.com";
-const WARRANTY_EMAIL = "info@dubdub22.com";
+const ORDER_EMAIL = "orders@dubdub22.com";
+const WARRANTY_EMAIL = "warranty@dubdub22.com";
 const BCC_EMAIL = "";
 const GMAIL_TOKEN_PATH = "/home/dubdub/DubDub-Hub/gmail_token.json";
 const ENV_PATH = "/home/dubdub/DubDub-Hub/.env";
@@ -1380,7 +1381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send email
       await sendViaGmail({
-        to: SALES_EMAIL,
+        to: ORDER_EMAIL,
         bcc: BCC_EMAIL,
         subject: `DubDub22 ${subjectLine}`,
         text: bodyLines.join("\n"),
