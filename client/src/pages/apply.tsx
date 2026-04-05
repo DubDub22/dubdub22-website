@@ -69,7 +69,7 @@ const FileZone = React.forwardRef<HTMLInputElement, {
       </label>
       <div
         className={
-          "relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg transition-colors h-32 " +
+          "relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg transition-colors h-32 overflow-hidden " +
           (dragging ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/30")
         }
       >
@@ -79,7 +79,8 @@ const FileZone = React.forwardRef<HTMLInputElement, {
           accept={props.accept}
           required={props.required}
           ref={ref}
-          className="absolute inset-0 w-[200%] h-[200%] -ml-10 -mt-10 opacity-0 cursor-pointer z-50"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+          style={{ pointerEvents: 'none' }}
           onChange={handleChange}
           onDragOver={() => setDragging(true)}
           onDragLeave={() => setDragging(false)}
