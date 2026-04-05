@@ -73,7 +73,7 @@ const FileZone = React.forwardRef<HTMLInputElement, {
           (dragging ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/30")
         }
       >
-        <Input
+        <input
           id={props.id}
           type="file"
           accept={props.accept}
