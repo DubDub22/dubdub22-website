@@ -42,6 +42,8 @@ function PendingUpload(props: { fflNumber: string }) {
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [fflSegs, setFflSegs] = useState(["", "", "", "", "", ""]);
+  const [fflError, setFflError] = useState("");
 
   const pendingSchema = z.object({
     dealerName: z.string().min(2, "FFL / Dealer name is required"),
@@ -78,13 +80,19 @@ function PendingUpload(props: { fflNumber: string }) {
   });
 
   async function onSubmit(values: PendingValues) {
+    const fullFfl = fflSegs.join("-");
+    if (fflSegs.some(s => s.length === 0)) {
+      setFflError("Please fill in all FFL number segments");
+      return;
+    }
+    setFflError("");
     setSubmitting(true);
     try {
       const resp = await fetch("/api/ffl/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fflNumber: props.fflNumber,
+          fflNumber: fullFfl,
           dealerName: values.dealerName,
           contactName: values.contactName,
           email: values.email,
@@ -131,23 +139,77 @@ function PendingUpload(props: { fflNumber: string }) {
           Your FFL was not found in our database. Fill out the form below and we will verify your FFL and add you to our dealer list.
         </div>
 
-        {/* FFL Number — 6-segment display */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">FFL Number:</span>
-          <div className="flex items-center gap-1 font-mono text-sm font-semibold tracking-widest">
-            {["X", "XX", "XXX", "XX", "XX", "XXXXX"].map((placeholder, i) => {
-              const parts = (props.fflNumber || "").split("-");
-              const value = parts[i] || "";
-              return (
-                <div key={i} className="flex items-center">
-                  <div className="min-w-[2rem] h-8 border border-border rounded bg-muted/30 flex items-center justify-center px-2">
-                    {value || <span className="text-muted-foreground text-xs">{placeholder}</span>}
-                  </div>
-                  {i < 5 && <span className="text-muted-foreground text-xs mx-0.5">-</span>}
-                </div>
-              );
-            })}
+        {/* FFL Number — 6-segment input boxes */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">FFL Number</label>
+          <div className="flex items-center gap-1 font-mono text-sm">
+            <input
+              key="seg0"
+              type="text"
+              maxLength={1}
+              value={fflSegs[0]}
+              onChange={e => { const v = e.target.value.toUpperCase(); setFflSegs([v, fflSegs[1], fflSegs[2], fflSegs[3], fflSegs[4], fflSegs[5]]); if (v) (document.getElementById("ffl-seg1") as HTMLInputElement)?.focus(); }}
+              className="w-8 h-9 border border-border rounded bg-card text-center text-center uppercase"
+              id="ffl-seg0"
+              placeholder="X"
+            />
+            <span className="text-muted-foreground mx-0.5">-</span>
+            <input
+              key="seg1"
+              type="text"
+              maxLength={2}
+              value={fflSegs[1]}
+              onChange={e => { const v = e.target.value.toUpperCase(); setFflSegs([fflSegs[0], v, fflSegs[2], fflSegs[3], fflSegs[4], fflSegs[5]]); if (v.length === 2) (document.getElementById("ffl-seg2") as HTMLInputElement)?.focus(); }}
+              className="w-10 h-9 border border-border rounded bg-card text-center uppercase"
+              id="ffl-seg1"
+              placeholder="XX"
+            />
+            <span className="text-muted-foreground mx-0.5">-</span>
+            <input
+              key="seg2"
+              type="text"
+              maxLength={3}
+              value={fflSegs[2]}
+              onChange={e => { const v = e.target.value.toUpperCase(); setFflSegs([fflSegs[0], fflSegs[1], v, fflSegs[3], fflSegs[4], fflSegs[5]]); if (v.length === 3) (document.getElementById("ffl-seg3") as HTMLInputElement)?.focus(); }}
+              className="w-12 h-9 border border-border rounded bg-card text-center uppercase"
+              id="ffl-seg2"
+              placeholder="XXX"
+            />
+            <span className="text-muted-foreground mx-0.5">-</span>
+            <input
+              key="seg3"
+              type="text"
+              maxLength={2}
+              value={fflSegs[3]}
+              onChange={e => { const v = e.target.value.toUpperCase(); setFflSegs([fflSegs[0], fflSegs[1], fflSegs[2], v, fflSegs[4], fflSegs[5]]); if (v.length === 2) (document.getElementById("ffl-seg4") as HTMLInputElement)?.focus(); }}
+              className="w-10 h-9 border border-border rounded bg-card text-center uppercase"
+              id="ffl-seg3"
+              placeholder="XX"
+            />
+            <span className="text-muted-foreground mx-0.5">-</span>
+            <input
+              key="seg4"
+              type="text"
+              maxLength={2}
+              value={fflSegs[4]}
+              onChange={e => { const v = e.target.value.toUpperCase(); setFflSegs([fflSegs[0], fflSegs[1], fflSegs[2], fflSegs[3], v, fflSegs[5]]); if (v.length === 2) (document.getElementById("ffl-seg5") as HTMLInputElement)?.focus(); }}
+              className="w-10 h-9 border border-border rounded bg-card text-center uppercase"
+              id="ffl-seg4"
+              placeholder="XX"
+            />
+            <span className="text-muted-foreground mx-0.5">-</span>
+            <input
+              key="seg5"
+              type="text"
+              maxLength={5}
+              value={fflSegs[5]}
+              onChange={e => { const v = e.target.value.toUpperCase(); setFflSegs([fflSegs[0], fflSegs[1], fflSegs[2], fflSegs[3], fflSegs[4], v]); }}
+              className="w-14 h-9 border border-border rounded bg-card text-center uppercase"
+              id="ffl-seg5"
+              placeholder="XXXXX"
+            />
           </div>
+          {fflError && <p className="text-xs text-red-500">{fflError}</p>}
         </div>
 
         <FormField
