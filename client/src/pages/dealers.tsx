@@ -39,11 +39,11 @@ export default function DealersPage() {
         setStatus("success");
         // Redirect to portal after brief display — pass full FFL + expiry from DB
         setTimeout(() => {
-          const fullFfl = data.fflLicenseNumber || ffl;
+          // Use the original user-typed FFL, not the CSV-padded version
           const expiry = data.fflExpiry || "";
           const email = data.email || "";
           const phone = data.phone || "";
-          window.location.href = `/apply?ffl=${encodeURIComponent(fullFfl)}&name=${encodeURIComponent(data.dealerName || "")}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&expiry=${encodeURIComponent(expiry)}`;
+          window.location.href = `/apply?ffl=${encodeURIComponent(ffl)}&name=${encodeURIComponent(data.dealerName || "")}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&expiry=${encodeURIComponent(expiry)}`;
         }, 1500);
       } else {
         setStatus("not-found");

@@ -382,15 +382,28 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
   const [submitted, setSubmitted] = useState(false);
 
   // Parse FFL number into 6 segments for display/editing
+  // Handles both dashed ("1-66-075-01-8B-00358") and raw 15-digit ("166075018B00358") formats
   const parseFflSegments = (ffl: string): string[] => {
-    const cleaned = ffl.replace(/-/g, "");
+    if (ffl.includes("-")) {
+      // Has dashes — split directly
+      const parts = ffl.split("-");
+      return [
+        parts[0] || "",
+        parts[1] || "",
+        parts[2] || "",
+        parts[3] || "",
+        parts[4] || "",
+        parts[5] || "",
+      ];
+    }
+    // Raw 15-digit — parse by position (ATF format: X-XX-XXX-XX-XX-XXXXX)
     return [
-      cleaned.slice(0, 1)  || "",
-      cleaned.slice(1, 3)  || "",
-      cleaned.slice(3, 6)  || "",
-      cleaned.slice(6, 8)  || "",
-      cleaned.slice(8, 10) || "",
-      cleaned.slice(10, 15) || "",
+      ffl.slice(0, 1)  || "",
+      ffl.slice(1, 3)  || "",
+      ffl.slice(3, 6)  || "",
+      ffl.slice(6, 8)  || "",
+      ffl.slice(8, 10) || "",
+      ffl.slice(10, 15) || "",
     ];
   };
 
