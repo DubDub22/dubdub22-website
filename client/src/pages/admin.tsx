@@ -97,7 +97,7 @@ type Dealer = {
   submissions?: Submission[];
 };
 
-type Tab = "submissions" | "warranty" | "dealer_inquiries" | "files" | "tax_forms" | "serials";
+type Tab = "submissions" | "warranty" | "dealer_inquiries" | "retail_inquiries" | "files" | "tax_forms" | "serials";
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
 
@@ -2468,6 +2468,8 @@ export default function AdminPage() {
   const [dealerInquiries, setDealerInquiries] = useState<any[]>([]);
   const [dealerInquiriesSearch, setDealerInquiriesSearch] = useState("");
   const [dealerInquiryDeleteTarget, setDealerInquiryDeleteTarget] = useState<any | null>(null);
+  const [retailInquiries, setRetailInquiries] = useState<any[]>([]);
+  const [retailInquiriesSearch, setRetailInquiriesSearch] = useState("");
 
   const pinForm = useForm<z.infer<typeof pinSchema>>({ resolver: zodResolver(pinSchema), defaultValues: { pin: "" } });
 
@@ -2522,10 +2524,34 @@ export default function AdminPage() {
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }, []);
 
-  // Fetch dealer inquiries from combined API (submissions leads + retail_inquiries)
+  // Fetch dealer inquiries from combined API (submissions leads only)
   useEffect(() => {
     fetchDealerInquiries();
   }, [fetchDealerInquiries]);
+
+  const fetchRetailInquiries = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/retail-inquiries");
+      if (!res.ok) throw new Error("Failed to fetch retail inquiries");
+      const data = await res.json();
+      const normalized = (data.data || []).map((r: any) => ({
+        id: r.id,
+        contactName: r.contact_name,
+        businessName: r.dealer_name,
+        email: r.email,
+        phone: r.phone,
+        message: r.message,
+        createdAt: r.created_at,
+        status: r.status,
+      }));
+      setRetailInquiries(normalized);
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }, []);
+
+  // Fetch retail inquiries
+  useEffect(() => {
+    fetchRetailInquiries();
+  }, [fetchRetailInquiries]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2537,13 +2563,14 @@ export default function AdminPage() {
           fetchSubmissions();
           fetchWarrantyRequests();
           fetchDealerInquiries();
+          fetchRetailInquiries();
           setAuthStatus("authorized");
         }
         else setAuthStatus("needs_pin");
       })
       .catch(() => { if (!cancelled) setAuthStatus("needs_pin"); });
     return () => { cancelled = true; };
-  }, [fetchSubmissions, fetchWarrantyRequests, fetchDealerInquiries]);
+  }, [fetchSubmissions, fetchWarrantyRequests, fetchDealerInquiries, fetchRetailInquiries]);
 
   const onRequestPin = async () => {
     try {
@@ -2690,6 +2717,15 @@ export default function AdminPage() {
             <Badge variant="secondary" className="ml-2 text-xs">{dealerInquiries.length}</Badge>
           </button>
           <button
+            onClick={() => { setTab("retail_inquiries"); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              tab === "retail_inquiries" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <User className="w-4 h-4 inline mr-1.5" />Retail Inquiries
+            <Badge variant="secondary" className="ml-2 text-xs">{retailInquiries.length}</Badge>
+          </button>
+          <button
             onClick={() => { setTab("files"); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === "files" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2754,6 +2790,18 @@ export default function AdminPage() {
                 search={dealerInquiriesSearch}
                 setSearch={setDealerInquiriesSearch}
                 onDelete={(sub) => setDealerInquiryDeleteTarget(sub)}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {tab === "retail_inquiries" && (
+          <Card className="bg-card/50 border-border">
+            <CardContent className="p-4 md:p-6">
+              <RetailInquiriesTab
+                inquiries={retailInquiries}
+                search={retailInquiriesSearch}
+                setSearch={setRetailInquiriesSearch}
               />
             </CardContent>
           </Card>
