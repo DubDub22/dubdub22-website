@@ -3,7 +3,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -16,8 +15,12 @@ const dealerFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   confirmEmail: z.string().email({ message: "Please confirm your email address." }),
   phone: z.string().min(13, { message: "Phone number is required." }),
-  fflType: z.string().optional(),
-  quantityCans: z.string().optional(),
+  fflNumber: z.string().min(1, { message: "FFL number is required." }),
+  fflName: z.string().min(2, { message: "FFL name is required." }),
+  address: z.string().min(5, { message: "Address is required." }),
+  city: z.string().min(2, { message: "City is required." }),
+  state: z.string().min(2, { message: "State is required." }),
+  zipCode: z.string().min(5, { message: "ZIP code is required." }),
   message: z.string().optional(),
 }).refine((data) => data.email === data.confirmEmail, {
   message: "Email addresses must match.",
@@ -32,92 +35,6 @@ function formatPhone(value: string): string {
   return `(${digits.slice(0, 3)})${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
-async function processImage(selectedFile: File | null): Promise<string | undefined> {
-  if (!selectedFile) return undefined;
-  return new Promise<string>((resolve, reject) => {
-    if (selectedFile.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.src = e.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          const MAX_WIDTH = 1024;
-          const MAX_HEIGHT = 1024;
-          if (width > height) {
-            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
-          } else {
-            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
-          resolve(dataUrl.split(',')[1]);
-        };
-        img.onerror = reject;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(selectedFile);
-    } else {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(selectedFile);
-    }
-  });
-}
-
-function FileInputZone({ id, label, accept, capture, required, description }: any) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    const input = document.getElementById(id) as HTMLInputElement;
-    if (input && !input.value) setFileName(null);
-  });
-
-  return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label} {description && <span className="text-muted-foreground font-normal">({description})</span>}
-      </label>
-      <div
-        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg transition-colors duration-200 ${isDragging ? "border-primary bg-primary/10" : "border-border bg-card"} hover:border-primary/30 cursor-pointer h-32 overflow-hidden`}
-      >
-        <Input
-          id={id}
-          type="file"
-          accept={accept}
-          required={required}
-          capture={capture as any}
-          className="absolute inset-0 w-[200%] h-[200%] -ml-10 -mt-10 opacity-0 cursor-pointer z-50 file:cursor-pointer"
-          onChange={(e) => setFileName(e.target.files?.[0]?.name || null)}
-          onDragOver={() => setIsDragging(true)}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={() => setIsDragging(false)}
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center z-10 pointer-events-none">
-          <UploadCloud className={`w-8 h-8 mb-2 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
-          <span className="text-sm text-muted-foreground">
-            {fileName ? (
-              <span className="text-primary font-semibold block truncate max-w-[260px]">{fileName}</span>
-            ) : (
-              <>Drop file here, or <span className="text-primary font-medium">click to browse</span></>
-            )}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const MotionWrapButton = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => (
   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className={`inline-block ${className}`}>
     {children}
@@ -127,8 +44,7 @@ const MotionWrapButton = ({ children, className = "" }: { children: React.ReactN
 export default function DealerForm() {
   const { toast } = useToast();
   const [requestType, setRequestType] = useState<'none' | 'inquiry' | 'order'>('none');
-  const [demoFulfilled, setDemoFulfilled] = useState(false);
-  const [checkingDemo, setCheckingDemo] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<z.infer<typeof dealerFormSchema>>({
     resolver: zodResolver(dealerFormSchema),
     defaultValues: {
@@ -137,95 +53,64 @@ export default function DealerForm() {
       email: "",
       confirmEmail: "",
       phone: "",
-      quantityCans: "5",
+      fflNumber: "",
+      fflName: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      message: "",
     },
   });
 
-  // Check if dealer already has a shipped demo when email looks valid
-  const [demoFulfilledAt, setDemoFulfilledAt] = useState<string | null>(null);
-  const checkDemoStatus = async (email: string) => {
-    if (!email.includes("@") || !email.includes(".")) return;
-    setCheckingDemo(true);
-    try {
-      const resp = await fetch(`/api/dealer-request/demo-status?email=${encodeURIComponent(email)}`);
-      const data = await resp.json();
-      setDemoFulfilled(!!data.hasShippedDemo);
-      setDemoFulfilledAt(data.demoFulfilledAt || null);
-      if (data.hasShippedDemo && form.getValues("quantityCans") === "1") {
-        form.setValue("quantityCans", "5");
-      }
-    } catch {
-      // Non-fatal — leave demo option enabled
-    } finally {
-      setCheckingDemo(false);
-    }
-  };
-
-  // Watch email field for demo status check
-  const emailValue = form.watch("email");
-  React.useEffect(() => {
-    const timer = setTimeout(() => checkDemoStatus(emailValue), 600);
-    return () => clearTimeout(timer);
-  }, [emailValue]);
-
   async function onSubmit(values: z.infer<typeof dealerFormSchema>) {
-    if (requestType === 'order' && !values.quantityCans) {
-      toast({ title: "Quantity Required", description: "Please select the number of DubDubs for your order.", variant: "destructive" });
-      return;
-    }
-    const fflInput = document.getElementById("fflUpload") as HTMLInputElement | null;
-    const resaleInput = document.getElementById("resaleUpload") as HTMLInputElement | null;
-    const taxFormInput = document.getElementById("taxFormUpload") as HTMLInputElement | null;
-    const fflFile = fflInput?.files?.[0] || null;
-    const resaleFile = resaleInput?.files?.[0] || null;
-    const taxFormFile = taxFormInput?.files?.[0] || null;
-    const fflName = fflFile?.name || "No file attached";
-    if (requestType === 'order' && !fflFile) {
-      toast({ title: "FFL / SOT Required", description: "Please attach your SOT file before submitting.", variant: "destructive" });
-      return;
-    }
+    setIsSubmitting(true);
     try {
-      const [fflBase64, resaleBase64, taxFormBase64] = await Promise.all([
-        processImage(fflFile),
-        processImage(resaleFile),
-        processImage(taxFormFile),
-      ]);
       const resp = await fetch('/api/dealer-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...values, confirmEmail: undefined,
+          contactName: values.contactName,
+          businessName: values.businessName,
+          email: values.email,
+          phone: values.phone,
           requestType: requestType === 'inquiry' ? 'Dealer Inquiry' : 'Dealer Order',
-          fflFileName: fflName, fflFileData: fflBase64,
-          resaleFileName: resaleFile?.name, resaleFileData: resaleBase64,
-          taxFormFileName: taxFormFile?.name, taxFormFileData: taxFormBase64,
+          fflNumber: values.fflNumber,
+          fflName: values.fflName,
+          address: values.address,
+          city: values.city,
+          state: values.state,
+          zipCode: values.zipCode,
+          message: values.message || "",
         }),
       });
       const data = await resp.json().catch(() => ({}));
+
       if (!resp.ok) {
-        if (data?.error === 'demo_already_ordered') {
-          toast({ title: "Demo Can Already Ordered", description: data.message || "Demo can limit of 1 per dealer has been fulfilled. Please place future orders in multiples of 5.", variant: "destructive" });
-          return;
-        }
-        if (data?.error === 'invalid_quantity') {
-          toast({ title: "Invalid Quantity", description: data.message || "Dealer orders must be 1 (demo can) or a multiple of 5.", variant: "destructive" });
-          return;
-        }
-        toast({ title: "Request Failed", description: data?.error || "Could not send request. Please try again.", variant: "destructive" });
+        toast({
+          title: "Request Failed",
+          description: data?.error || "Could not send request. Please try again.",
+          variant: "destructive",
+        });
         return;
       }
+
       toast({
-        title: requestType === 'inquiry' ? "Inquiry Sent" : "Request Sent",
-        description: requestType === 'inquiry' ? "We've received your inquiry and will respond by email shortly." : "Invoice request received. We'll follow up by email shortly.",
-        className: "bg-orange-500 text-black border-orange-600",
+        title: "Request Sent",
+        description: "Check your spam folder for an email from dubdub22.com.",
+        className: "bg-green-600 text-white border-green-700",
       });
-      form.reset({ contactName: "", businessName: "", email: "", confirmEmail: "", phone: "", quantityCans: "5" });
+
+      form.reset();
       setRequestType('none');
-      if (fflInput) fflInput.value = "";
-      if (resaleInput) resaleInput.value = "";
-      if (taxFormInput) taxFormInput.value = "";
     } catch {
-      toast({ title: "Send Failed", description: "Could not send request. Please try again.", variant: "destructive" });
+      toast({
+        title: "Send Failed",
+        description: "Could not send request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -247,89 +132,134 @@ export default function DealerForm() {
             </div>
           </div>
         )}
+
         {requestType !== 'none' && (
           <>
-            <button type="button" onClick={() => setRequestType('none')} className="text-xs text-muted-foreground hover:text-primary transition-colors">← Change selection</button>
-            <FormField control={form.control} name="contactName" render={({ field }) => (
-              <FormItem><FormLabel>Contact Name</FormLabel><FormControl><Input placeholder="John Doe" {...field} className="bg-card border-border focus:border-primary" /></FormControl><FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" /></FormItem>
-            )} />
-            <FormField control={form.control} name="businessName" render={({ field }) => (
-              <FormItem><FormLabel>Business Name</FormLabel><FormControl><Input placeholder="Tactical Solutions LLC" {...field} className="bg-card border-border focus:border-primary" /></FormControl><FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" /></FormItem>
-            )} />
+            <button
+              type="button"
+              onClick={() => setRequestType('none')}
+              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              ← Change selection
+            </button>
+
+            <div className="grid grid-cols-1 gap-4">
+              <FormField control={form.control} name="contactName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Point of Contact</FormLabel>
+                  <FormControl><Input placeholder="John Doe" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                  <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                </FormItem>
+              )} />
+
+              <FormField control={form.control} name="businessName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Business Name</FormLabel>
+                  <FormControl><Input placeholder="Tactical Solutions LLC" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                  <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                </FormItem>
+              )} />
+            </div>
+
             <FormField control={form.control} name="email" render={({ field }) => (
-              <FormItem><FormLabel>Email</FormLabel><FormControl><Input placeholder="john@example.com" {...field} className="bg-card border-border focus:border-primary" /></FormControl><FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" /></FormItem>
+              <FormItem>
+                <Label>Email</Label>
+                <FormControl><Input placeholder="john@example.com" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+              </FormItem>
             )} />
+
             {form.watch("email").includes("@") && (
               <FormField control={form.control} name="confirmEmail" render={({ field }) => (
-                <FormItem><FormLabel>Confirm Email</FormLabel><FormControl><Input placeholder="john@example.com" {...field} className="bg-card border-border focus:border-primary" /></FormControl><FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" /></FormItem>
+                <FormItem>
+                  <FormLabel>Confirm Email</FormLabel>
+                  <FormControl><Input placeholder="john@example.com" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                  <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                </FormItem>
               )} />
             )}
+
             <FormField control={form.control} name="phone" render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone Number {requestType === 'inquiry' && <span className="text-xs text-muted-foreground">(optional)</span>}</FormLabel>
+                <FormLabel>Phone Number</FormLabel>
                 <FormControl><Input placeholder="(555)123-4567" value={field.value} onChange={(e) => field.onChange(formatPhone(e.target.value))} className="bg-card border-border focus:border-primary" /></FormControl>
                 <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
               </FormItem>
             )} />
-            <FormField control={form.control} name="fflType" render={({ field }) => (
-              <FormItem>
-                <FormLabel>FFL / SOT Type {requestType === 'inquiry' && <span className="text-xs text-muted-foreground">(optional)</span>}</FormLabel>
-                <FormControl>
-                  <select value={field.value ?? ""} onChange={field.onChange} className="w-full h-10 rounded-md bg-card border border-border px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary">
-                    <option value="">Select type...</option>
-                    <option value="Class 2 Manufacturer">Class 2 Manufacturer</option>
-                    <option value="Class 3 Dealer">Class 3 Dealer</option>
-                  </select>
-                </FormControl>
-                <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
-              </FormItem>
-            )} />
-            {requestType === 'order' && (
-              <>
-                <FormField control={form.control} name="quantityCans" render={({ field }) => (
+
+            <div className="border-t border-border pt-4">
+              <p className="text-sm font-medium text-muted-foreground mb-3">FFL Information</p>
+
+              <div className="grid grid-cols-1 gap-4">
+                <FormField control={form.control} name="fflNumber" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Number of DubDubs</FormLabel>
-                    <FormControl>
-                      <select
-                        value={field.value}
-                        onChange={field.onChange}
-                        disabled={demoFulfilled}
-                        className="w-full h-10 rounded-md bg-card border border-border px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {demoFulfilled ? (
-                          <option value="5">5 – Multiple of 5 required (Demo fulfilled)</option>
-                        ) : (
-                          <>
-                            <option value="1">1 – Demo Can</option>
-                            {[5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100].map((n) => <option key={n} value={String(n)}>{n}</option>)}
-                          </>
-                        )}
-                      </select>
-                    </FormControl>
-                    {demoFulfilled && demoFulfilledAt && (
-                      <p className="text-xs text-green-500 mt-1">
-                        ✓ Demo unit fulfilled on {new Date(demoFulfilledAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })} — orders must be in multiples of 5.
-                      </p>
-                    )}
-                    {demoFulfilled && !demoFulfilledAt && (
-                      <p className="text-xs text-green-500 mt-1">✓ Demo unit fulfilled — orders must be in multiples of 5.</p>
-                    )}
+                    <FormLabel>FFL Number</FormLabel>
+                    <FormControl><Input placeholder="12345-AT-XYZ" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
                     <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
                   </FormItem>
                 )} />
-                <FileInputZone id="fflUpload" label="SOT Upload" accept=".pdf,.png,.jpg,.jpeg" required={true} description="Accepted: PDF, PNG, JPG/JPEG" />
-                <FileInputZone id="resaleUpload" label="Resale Certificate" accept=".pdf,.png,.jpg,.jpeg" required={false} description="Accepted: PDF, PNG, JPG/JPEG" />
-                <FileInputZone id="taxFormUpload" label="Multi-State Tax Form" accept=".pdf,.png,.jpg,.jpeg" required={false} description="Accepted: PDF, PNG, JPG/JPEG" />
-              </>
-            )}
+
+                <FormField control={form.control} name="fflName" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>FFL Name</FormLabel>
+                    <FormControl><Input placeholder="John's Firearms LLC" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                    <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="address" render={({ field }) => (
+                <FormItem className="mt-4">
+                  <FormLabel>Address</FormLabel>
+                  <FormControl><Input placeholder="123 Main St" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                  <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                </FormItem>
+              )} />
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <FormField control={form.control} name="city" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>City</FormLabel>
+                    <FormControl><Input placeholder="Houston" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                    <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="state" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl><Input placeholder="TX" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                    <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                  </FormItem>
+                )} />
+              </div>
+
+              <FormField control={form.control} name="zipCode" render={({ field }) => (
+                <FormItem className="mt-4">
+                  <FormLabel>ZIP Code</FormLabel>
+                  <FormControl><Input placeholder="77541" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                  <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                </FormItem>
+              )} />
+            </div>
+
             {requestType === 'inquiry' && (
               <FormField control={form.control} name="message" render={({ field }) => (
-                <FormItem><FormLabel>Questions or Comments <span className="text-xs text-muted-foreground">(optional)</span></FormLabel><FormControl><Textarea placeholder="Tell us about your shop, what you're looking for, any questions you have..." rows={3} {...field} className="bg-card border-border focus:border-primary resize-none" /></FormControl><FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" /></FormItem>
+                <FormItem>
+                  <FormLabel>Questions or Comments <span className="text-xs text-muted-foreground">(optional)</span></FormLabel>
+                  <FormControl><Textarea placeholder="Tell us about your shop, what you're looking for..." rows={3} {...field} className="bg-card border-border focus:border-primary resize-none" /></FormControl>
+                  <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
+                </FormItem>
               )} />
             )}
+
             <MotionWrapButton className="w-full">
-              <Button type="submit" className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow">
-                {requestType === 'inquiry' ? 'SUBMIT INQUIRY' : 'REQUEST INVOICE'}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow disabled:opacity-60"
+              >
+                {isSubmitting ? "SENDING..." : requestType === 'inquiry' ? 'SUBMIT INQUIRY' : 'SUBMIT'}
               </Button>
             </MotionWrapButton>
           </>
