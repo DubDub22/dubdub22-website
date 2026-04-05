@@ -131,11 +131,23 @@ function PendingUpload(props: { fflNumber: string }) {
           Your FFL was not found in our database. Fill out the form below and we will verify your FFL and add you to our dealer list.
         </div>
 
-        <div className="space-y-1">
-          <p className="text-sm font-medium">
-            FFL Number:{" "}
-            <span className="font-mono text-primary">{props.fflNumber}</span>
-          </p>
+        {/* FFL Number — 6-segment display */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">FFL Number:</span>
+          <div className="flex items-center gap-1 font-mono text-sm font-semibold tracking-widest">
+            {["X", "XX", "XXX", "XX", "XX", "XXXXX"].map((placeholder, i) => {
+              const parts = (props.fflNumber || "").split("-");
+              const value = parts[i] || "";
+              return (
+                <div key={i} className="flex items-center">
+                  <div className="min-w-[2rem] h-8 border border-border rounded bg-muted/30 flex items-center justify-center px-2">
+                    {value || <span className="text-muted-foreground text-xs">{placeholder}</span>}
+                  </div>
+                  {i < 5 && <span className="text-muted-foreground text-xs mx-0.5">-</span>}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <FormField

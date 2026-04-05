@@ -2004,12 +2004,30 @@ function VerifyFflTab() {
         </button>
         <div className="bg-card rounded-lg border border-border p-6 space-y-4">
           <h2 className="text-xl font-bold">FFL/SOT Review</h2>
+          {/* FFL Number — 6-segment display */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">FFL:</span>
+            <div className="flex items-center gap-1 font-mono text-sm font-semibold tracking-widest">
+              {["X", "XX", "XXX", "XX", "XX", "XXXXX"].map((placeholder, i) => {
+                const parts = (reviewTarget.ffl_license_number || "").split("-");
+                const value = parts[i] || "";
+                return (
+                  <div key={i} className="flex items-center">
+                    <div className="min-w-[2rem] h-8 border border-border rounded bg-muted/30 flex items-center justify-center px-2">
+                      {value || <span className="text-muted-foreground text-xs">{placeholder}</span>}
+                    </div>
+                    {i < 5 && <span className="text-muted-foreground text-xs mx-0.5">-</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4 text-sm">
             <div><span className="text-muted-foreground">Dealer:</span> <strong>{reviewTarget.business_name}</strong></div>
             <div><span className="text-muted-foreground">Contact:</span> {reviewTarget.contact_name}</div>
             <div><span className="text-muted-foreground">Email:</span> {reviewTarget.email}</div>
             <div><span className="text-muted-foreground">Phone:</span> {reviewTarget.phone}</div>
-            <div><span className="text-muted-foreground">FFL:</span> <span className="font-mono">{reviewTarget.ffl_license_number}</span></div>
             <div><span className="text-muted-foreground">Submitted:</span> {reviewTarget.updated_at ? format(new Date(reviewTarget.updated_at), "MMM d, yyyy") : "—"}</div>
           </div>
 
