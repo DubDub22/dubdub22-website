@@ -126,8 +126,8 @@ function PendingUpload(props: { fflNumber: string }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!fflFile) {
-      toast({ title: "FFL Required", description: "Please upload your FFL document.", variant: "destructive" });
+    if (!fflFile && !sotFile) {
+      toast({ title: "FFL or SOT Required", description: "Please upload your FFL or SOT document.", variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -187,7 +187,6 @@ function PendingUpload(props: { fflNumber: string }) {
         id="ffl-upload"
         label="FFL Document"
         accept=".pdf,.png,.jpg,.jpeg"
-        required
         description="Accepted: PDF, PNG, JPG"
         onFileSelect={setFflFile}
       />
