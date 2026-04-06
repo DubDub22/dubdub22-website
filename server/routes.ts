@@ -1408,7 +1408,7 @@ DubDub22 Minions`;
       if (!dealerFormStatus.sotOnFile) missingForms.push("a current SOT");
       if (!dealerFormStatus.taxFormOnFile) {
         if (multiStateTaxFormBase64) {
-          missingForms.push("Please use the attached tax form for your resale tax exemption. Please also attach a copy of your state's sales and use tax permit.");
+          missingForms.push("Please use the attached tax form for your resale tax exemption. Please also attach a copy of your state-issued sales and use tax permit.");
         } else {
           missingForms.push("a completed multi-state tax form");
         }
