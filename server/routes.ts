@@ -1182,15 +1182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? fs.readFileSync(taxFormPath).toString("base64")
           : null;
 
-        const emailText = isExisting
-          ? `Thank you — we've received your updated dealer information and FFL.
-
-Our team will review your details and be in touch within 1–2 business days.
-
-If you have any questions, reply to this email.
-
-DubDub22 / Double T Tactical`
-          : `Thanks for submitting your dealer application to DubDub22. To complete your dealer profile, please email us:
+        const emailText = `Thanks for submitting your dealer application to DubDub22. To complete your dealer profile, please email us:
 - A copy of your FFL
 - A copy of your SOT
 - The completed multi-state tax form (attached)
