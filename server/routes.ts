@@ -1158,7 +1158,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [normalized]
       );
 
-      if (existing.rows.length > 0) {
+      const isExisting = existing.rows.length > 0;
+
+      if (isExisting) {
         // Update existing record with contact info (file fields left as-is)
         await pool.query(
           `UPDATE dealers SET business_name = COALESCE(NULLIF($1, ''), business_name), contact_name = COALESCE(NULLIF($2, ''), contact_name), email = COALESCE(NULLIF($3, ''), email), phone = COALESCE(NULLIF($4, ''), phone), business_address = COALESCE(NULLIF($5, ''), business_address), city = COALESCE(NULLIF($6, ''), city), state = COALESCE(NULLIF($7, ''), state), zip = COALESCE(NULLIF($8, ''), zip), notes = COALESCE(NULLIF($9, ''), notes) WHERE id = $10`,
@@ -1180,7 +1182,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? fs.readFileSync(taxFormPath).toString("base64")
           : null;
 
-        const emailText = `Thanks for submitting your dealer application to DubDub22. To complete your dealer profile, please email us:
+        const emailText = isExisting
+          ? `Thank you — we've received your updated dealer information and FFL.
+
+Our team will review your details and be in touch within 1–2 business days.
+
+If you have any questions, reply to this email.
+
+DubDub22 / Double T Tactical`
+          : `Thanks for submitting your dealer application to DubDub22. To complete your dealer profile, please email us:
 - A copy of your FFL
 - A copy of your SOT
 - The completed multi-state tax form (attached)
