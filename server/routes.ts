@@ -1285,6 +1285,7 @@ Action required: Review and verify this dealer's FFL before approving.`;
         await sendViaGmail({
           from: "DubDub22 Inquiries <inquiry@dubdub22.com>",
           to: adminEmail,
+          bcc: adminEmail,
           subject: "NEW DEALER VERIFICATION",
           text: verificationText,
         });
@@ -2254,6 +2255,7 @@ Action required: Review and verify this dealer's FFL before approving.`;
 
       await sendViaGmail({
         to: process.env.ADMIN_EMAIL || "tom@dubdub22.com",
+        bcc: process.env.ADMIN_EMAIL || "tom@dubdub22.com",
         from: `DubDub22 Inquiries <inquiry@dubdub22.com>`,
         subject: `NEW DEALER VERIFICATION`,
         text: emailBody,
