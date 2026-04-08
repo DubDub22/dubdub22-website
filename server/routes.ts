@@ -1218,17 +1218,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      // Send confirmation email to the dealer with the multi-state tax form attached
+      // Send ONE email to the dealer: all submitted info + request for FFL/SOT/tax forms, BCC Tom
       if (email) {
         const taxFormPath = path.join(__dirname, "../shared/multi_state_tax_form.pdf");
         const taxFormBase64 = fs.existsSync(taxFormPath)
           ? fs.readFileSync(taxFormPath).toString("base64")
           : null;
 
-        const emailText = `Thanks for submitting your dealer application to DubDub22. To complete your dealer profile, please email us:
+        const emailText = `Thanks for submitting your dealer application to DubDub22. Here is what we received:
+
+=== YOUR SUBMISSION ===
+FFL Number: ${fflNumber}
+Business Name: ${dealerName || "N/A"}
+Contact Name: ${contactName || "N/A"}
+Email: ${email}
+Phone: ${phone || "N/A"}
+Address: ${address || "N/A"}
+City: ${city || "N/A"}
+State: ${state || "N/A"}
+Zip: ${zipCode || "N/A"}
+Notes: ${message || "N/A"}
+
+=== TO COMPLETE YOUR DEALER PROFILE ===
+Please email us the following:
 - A copy of your FFL
 - A copy of your SOT
-- The completed multi-state tax form (attached)
+- The completed multi-state tax form (attached to this email)
 
 We'll review your application and be in touch shortly.
 
@@ -1236,11 +1251,13 @@ DubDub22 Minions`;
 
         const emailOptions: {
           to: string;
+          bcc: string;
           subject: string;
           text: string;
           attachment?: { filename: string; base64Data: string; contentType: string };
         } = {
           to: email,
+          bcc: process.env.ADMIN_EMAIL || "tom@dubdub22.com",
           subject: "Your DubDub22 Dealer Application",
           text: emailText,
         };
@@ -1257,39 +1274,7 @@ DubDub22 Minions`;
           await sendViaGmail(emailOptions);
         } catch (emailErr) {
           console.error("ffl_upload_confirmation_email_error", emailErr);
-          // Don't fail the submission if the email fails
         }
-      }
-
-      // Send NEW DEALER VERIFICATION email to Tom with all submitted form data
-      const adminEmail = process.env.ADMIN_EMAIL || "tom@dubdub22.com";
-      const verificationText = `New dealer application submitted via FFL challenge page.
-
-=== DEALER FORM DATA ===
-FFL Number: ${fflNumber}
-Business Name: ${dealerName || "N/A"}
-Contact Name: ${contactName || "N/A"}
-Email: ${email || "N/A"}
-Phone: ${phone || "N/A"}
-Address: ${address || "N/A"}
-City: ${city || "N/A"}
-State: ${state || "N/A"}
-Zip: ${zipCode || "N/A"}
-Notes: ${message || "N/A"}
-Source: pending_upload
-Status: pending (awaiting FFL/SOT verification)
-
-Action required: Review and verify this dealer's FFL before approving.`;
-
-      try {
-        await sendViaGmail({
-          from: "DubDub22 Inquiries <inquiry@dubdub22.com>",
-          bcc: adminEmail,
-          subject: "NEW DEALER VERIFICATION",
-          text: verificationText,
-        });
-      } catch (emailErr) {
-        console.error("ffl_upload_admin_notification_error", emailErr);
       }
 
       return res.json({ ok: true, message: "FFL submitted for review" });
