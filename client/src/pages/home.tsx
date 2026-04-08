@@ -136,14 +136,14 @@ const scaleFadeItem = {
 // Extracted UI Components for reuse / readability
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <motion.div variants={fadeUpItem}>
-      <Card className="bg-card border-border hover:border-primary/50 shadow-lg hover:shadow-2xl transition-all duration-300 group">
-        <CardContent className="pt-6">
+    <motion.div variants={fadeUpItem} className="flex">
+      <Card className="bg-card border-border hover:border-primary/50 shadow-lg hover:shadow-2xl transition-all duration-300 group flex flex-col h-full">
+        <CardContent className="pt-6 flex flex-col flex-1">
           <div className="mb-4 p-3 rounded-full bg-secondary w-fit group-hover:bg-primary/20 transition-colors duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-sm group-hover:shadow-md">
             {icon}
           </div>
           <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{title}</h3>
-          <p className="text-muted-foreground leading-relaxed">
+          <p className="text-muted-foreground leading-relaxed flex-1">
             {description}
           </p>
         </CardContent>
@@ -684,39 +684,39 @@ export default function Home() {
         <div className="container mx-auto px-6 max-w-4xl">
           <div className="grid md:grid-cols-3 gap-8">
             <motion.div variants={fadeUpItem}>
-              <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full"
+              <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full flex flex-col"
                 onClick={() => window.location.href = '/find'}>
                 <h2 className="text-3xl font-bold mb-4">FIND A DEALER</h2>
-                <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+                <p className="text-muted-foreground text-lg leading-relaxed mb-6 flex-1">
                   Use our dealer locator to find a DubDub22 dealer near you.
                 </p>
-                <Button className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow">
+                <Button className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow h-12">
                   VIEW DEALERS
                 </Button>
               </Card>
             </motion.div>
 
             <motion.div variants={fadeUpItem}>
-              <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full"
+              <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full flex flex-col"
                 onClick={() => window.location.href = '/dealers'}>
                 <h2 className="text-3xl font-bold mb-4">BECOME A DEALER</h2>
-                <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+                <p className="text-muted-foreground text-lg leading-relaxed mb-6 flex-1">
                   Interested in carrying DubDub22 suppressors? Fill out the form and we&apos;ll be in touch.
                 </p>
-                <Button className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow">
+                <Button className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow h-12">
                   APPLY NOW
                 </Button>
               </Card>
             </motion.div>
 
             <motion.div variants={fadeUpItem}>
-              <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full"
+              <Card className="border-border bg-background/50 backdrop-blur-md p-8 shadow-2xl hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] transition-shadow duration-500 cursor-pointer h-full flex flex-col"
                 onClick={() => window.location.href = '/warranty'}>
                 <h2 className="text-3xl font-bold mb-4">WARRANTY SERVICE</h2>
-                <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+                <p className="text-muted-foreground text-lg leading-relaxed mb-6 flex-1">
                   Need warranty service? Fill out the form and we&apos;ll get you sorted.
                 </p>
-                <Button className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow">
+                <Button className="w-full font-display text-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer shadow-lg hover:shadow-xl transition-shadow h-12">
                   FILE A CLAIM
                 </Button>
               </Card>
