@@ -1324,7 +1324,7 @@ DubDub22 Minions`;
 
   app.post("/api/dealer-request", async (req, res) => {
     try {
-      const { requestType, dealerName, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, sotFileName, sotFileData, message, orderKind, fflNumber, ein, resaleFileName, resaleFileData, taxFormFileName, taxFormFileData } = req.body || {};
+      const { requestType, dealerName, contactName, businessName, email, phone, quantityCans, fflFileName, fflFileData, sotFileName, sotFileData, message, orderKind, fflNumber, ein, resaleFileName, resaleFileData, taxFormFileName, taxFormFileData, termsAccepted } = req.body || {};
 
       // Support new field names from dealer portal (dealerName/fflNumber) and legacy (businessName/fflType)
       const bizName = dealerName || businessName || "";
@@ -1460,25 +1460,10 @@ DubDub22 Minions`;
         message ? `\nMessage:\n${message}` : "",
       ].filter(Boolean).join("\n");
 
+      // No emails here — all order confirmation emails fire from /api/retail-order
+      // after the dealer accepts T&C on the order-confirmation page
       const [gmailResult, dbResult] = await Promise.all([
-        // Only fire order email immediately for stocking orders — demo orders get their email
-        // after the dealer accepts terms on the order-confirmation page
-        !isInquiry && !isDemoOrder ? sendViaGmail({
-          to: SALES_EMAIL,
-          bcc: BCC_EMAIL,
-          from: `DubDub22 Orders <orders@dubdub22.com>`,
-          subject: `DubDub22 Dealer Order`,
-          text: orderBody,
-          replyTo: email,
-          attachment: (fflFileData || sotFileData) ? {
-            filename: fflFileName || sotFileName || "document",
-            base64Data: fflFileData || sotFileData || "",
-            contentType: contentTypeMap[ext] || "application/octet-stream",
-          } : undefined,
-        }).catch(err => {
-          console.error("gmail_failed", err);
-          return null;
-        }) : Promise.resolve(null),
+        Promise.resolve(null),
         storage.createSubmission({
           type: "dealer",
           contactName,
@@ -1538,7 +1523,7 @@ DubDub22 Minions`;
 
       // Send auto-reply to the dealer (orders only — inquiries get the Path 1-style email above)
       // For demo orders, suppress all emails until terms acceptance on order-confirmation page
-      if (email && !isInquiry && !isDemoOrder) {
+      if (email && !isInquiry && !isDemoOrder && termsAccepted) {
         try {
           const autoReplyLines = [
             `Thank you for ${isInquiry ? 'submitting a dealer inquiry' : 'placing a dealer order'} with DubDub22.`,

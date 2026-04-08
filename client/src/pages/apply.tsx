@@ -484,6 +484,7 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
 
       if (orderKind !== "inquiry") {
         body.quantityCans = quantityCans;
+        body.termsAccepted = false;
       }
 
       const resp = await fetch("/api/dealer-request", {
