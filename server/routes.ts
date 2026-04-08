@@ -1257,7 +1257,7 @@ DubDub22 Minions`;
           attachment?: { filename: string; base64Data: string; contentType: string };
         } = {
           to: email,
-          bcc: process.env.ADMIN_EMAIL || "tom@dubdub22.com",
+          bcc: "inquiry@dubdub22.com",
           subject: "Your DubDub22 Dealer Application",
           text: emailText,
         };
