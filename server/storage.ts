@@ -112,16 +112,14 @@ export class DatabaseStorage implements IStorage {
       const rows = await db.execute(sql`
         SELECT
           COUNT(*) AS total,
-          COUNT(*) FILTER (WHERE ds.order_type = 'demo_order') AS demos,
-          COUNT(*) FILTER (WHERE ds.order_type = 'dealer') AS dealer_orders
+          COUNT(*) FILTER (WHERE ds.order_type = 'dealer_order') AS dealer_orders
         FROM dealer_submissions ds
         WHERE ds.dealer_id = ${dealer.id}
       `);
-      const counts = rows[0] as { total: string; demos: string; retail: string };
+      const counts = rows[0] as { total: string; dealer_orders: string };
       return {
         ...dealer,
         orderCount: parseInt(counts.total || "0"),
-        demoCount: parseInt(counts.demos || "0"),
         dealerOrderCount: parseInt(counts.dealer_orders || "0"),
       };
     }));

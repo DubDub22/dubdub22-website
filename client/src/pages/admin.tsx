@@ -98,7 +98,6 @@ type Dealer = {
   createdAt: string;
   updatedAt: string;
   orderCount?: number;
-  demoCount?: number;
   dealerOrderCount?: number;
   demoFulfilledAt?: string;
   submissions?: Submission[];
@@ -626,7 +625,7 @@ function DealerCard({ dealer, onClick }: { dealer: Dealer; onClick: () => void }
         <TaxBadge dealer={dealer} />
       </div>
       <div className="flex gap-4 text-xs text-muted-foreground">
-        {dealer.demoCount !== undefined && <span>Demo: <strong className="text-foreground">{dealer.demoCount}</strong></span>}
+        
         {dealer.dealerOrderCount !== undefined && <span>Dealer Orders: <strong className="text-foreground">{dealer.dealerOrderCount}</strong></span>}
         {dealer.orderCount !== undefined && <span>Total: <strong className="text-foreground">{dealer.orderCount}</strong></span>}
       </div>
@@ -654,7 +653,7 @@ function DealerRow({ dealer, onClick }: { dealer: Dealer; onClick: () => void })
       <td className="px-3 py-3"><TaxBadge dealer={dealer} /></td>
       <td className="px-3 py-3">
         <div className="flex gap-3 text-xs">
-          {dealer.demoCount !== undefined && <span title="Demo orders">🎯 <strong>{dealer.demoCount}</strong></span>}
+          
           {dealer.dealerOrderCount !== undefined && <span title="Dealer orders">📦 <strong>{dealer.dealerOrderCount}</strong></span>}
         </div>
         {dealer.demoFulfilledAt && <div className="text-xs text-muted-foreground mt-1">Demo: {fmtDate(dealer.demoFulfilledAt)}</div>}
@@ -1386,7 +1385,7 @@ function DealerDetail({
                 <p className="text-xs text-muted-foreground italic">No submissions linked.</p>
               )}
               <div className="mt-3 pt-2 border-t border-border text-xs text-muted-foreground flex gap-3">
-                {dealer.demoCount !== undefined && <span>🎯 Demo: {dealer.demoCount}</span>}
+                
                 {dealer.dealerOrderCount !== undefined && <span>📦 Dealer Orders: {dealer.dealerOrderCount}</span>}
               </div>
             </CardContent>
@@ -1449,7 +1448,7 @@ function AddDealerDialog({ open, onClose, onAdd }: { open: boolean; onClose: () 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       toast({ title: "Dealer Added!", description: `${values.businessName} has been added.` });
-      onAdd({ ...data.data, orderCount: 0, demoCount: 0, dealerOrderCount: 0, submissions: [] });
+      onAdd({ ...data.data, orderCount: 0, dealerOrderCount: 0, submissions: [] });
       form.reset();
       onClose();
     } catch (err: any) {

@@ -29,7 +29,7 @@ const orderFormSchema = z.object({
   path: ["confirmEmail"],
 });
 
-type IntentType = "info" | "demo" | "order";
+type IntentType = "info" | "order";
 
 const QUANTITY_OPTIONS = [
   { label: "5", value: "5" },
@@ -101,7 +101,7 @@ export default function OrderPage() {
         email: values.email,
         phone: values.phone || null,
         message: values.message || null,
-        quantity: isInfo ? null : intent === "demo" ? "1" : quantity,
+        quantity: isInfo ? null : quantity,
         fflFileName: fflName,
         fflFileData: fileBase64,
         customerAddress: values.customerAddress || null,
@@ -180,7 +180,6 @@ export default function OrderPage() {
                 className="w-full h-12 rounded-md bg-card border border-border px-3 text-base focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
               >
                 <option value="info">Send Me More Information</option>
-                <option value="demo">I want a Demo Can</option>
                 <option value="order">I want to place an order</option>
               </select>
             </motion.div>
@@ -445,8 +444,6 @@ export default function OrderPage() {
                 <span className="font-medium">
                   {intent === "info"
                     ? "We got your message — the minions will get on it shortly."
-                    : intent === "demo"
-                    ? "We got your message — the minions will get on it shortly."
                     : "We got your message — the minions will get on it shortly."}
                 </span>
               </div>
@@ -464,8 +461,6 @@ export default function OrderPage() {
                     </>
                   ) : intent === "info"
                   ? "SUBMIT"
-                  : intent === "demo"
-                  ? "REQUEST DEMO CAN"
                   : `REQUEST INVOICE (${quantity} CANS)`}
                 </Button>
               </MotionWrapButton>

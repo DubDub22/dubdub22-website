@@ -49,6 +49,9 @@ export const dealers = pgTable("dealers", {
   salesTaxFormName: text("sales_tax_form_name"),
   taxFormOnFile: boolean("tax_form_on_file").default(false),
 
+  // Demo unit tracking
+  hasDemoUnitShipped: boolean("has_demo_unit_shipped").default(false), // true once a dealer_order has been shipped to this dealer
+
   // Metadata
   notes: text("notes"),
   sourceSubmissionId: text("source_submission_id"), // first submission that created this dealer
@@ -61,7 +64,7 @@ export const dealerSubmissions = pgTable("dealer_submissions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   dealerId: text("dealer_id").notNull().references(() => dealers.id, { onDelete: "cascade" }),
   submissionId: text("submission_id").notNull().references(() => submissions.id, { onDelete: "cascade" }),
-  orderType: text("order_type"), // 'inquiry' | 'demo_order' | 'dealer'
+  orderType: text("order_type"), // 'inquiry' | 'dealer_order'
   quantity: text("quantity"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });

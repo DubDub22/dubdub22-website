@@ -542,12 +542,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ ok: false, error: "tracking_number_required" });
       }
       // Look up the submission first — if it's a demo (type=dealer, qty=1), lock the demo flag
-      const sub = await pool.query(`SELECT type, quantity FROM submissions WHERE id = $1`, [id]);
-      const isDemo = sub.rows[0]?.type === 'dealer' && sub.rows[0]?.quantity === '1';
+      const sub = await pool.query(`SELECT ds.dealer_id, s.type, s.quantity FROM submissions s JOIN dealer_submissions ds ON ds.submission_id = s.id WHERE s.id = $1 LIMIT 1`, [id]);
+      const dealerId = sub.rows[0]?.dealer_id;
       await pool.query(
-        `UPDATE submissions SET tracking_number = $1, atf_form_name = $2, atf_form_data = $3, shipped_at = NOW()::text${isDemo ? `, has_ordered_demo = 'true'` : ``} WHERE id = $4`,
+        `UPDATE submissions SET tracking_number = $1, atf_form_name = $2, atf_form_data = $3, shipped_at = NOW()::text WHERE id = $4`,
         [trackingNumber.trim(), atfFormName || null, atfFormData || null, id]
       );
+      if (dealerId) {
+        await pool.query(`UPDATE dealers SET has_demo_unit_shipped = true WHERE id = $1`, [dealerId]);
+      }
       return res.json({ ok: true });
     } catch (err: any) {
       console.error("ship_submission_error", err);
@@ -1096,7 +1099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         if (dealer.rows.length > 0) {
           const isDemo = sub.quantity === "1";
-          const orderType = isDemo ? "demo_order" : (sub.quantity ? "dealer" : "inquiry");
+          const orderType = sub.quantity ? "dealer_order" : "inquiry";
           await pool.query(
             `INSERT INTO dealer_submissions (dealer_id, submission_id, order_type, quantity) VALUES ($1,$2,$3,$4)`,
             [dealer.rows[0].id, sub.id, orderType, sub.quantity]
@@ -1388,7 +1391,6 @@ DubDub22 Minions`;
           description: message || null,
           fflFileName: isInquiry ? null : (fflFileName || null),
           fflFileData: isInquiry ? null : (fflFileData || null),
-          hasOrderedDemo: isDemoOrder ? 'true' : 'false',
         }).catch(err => {
           console.error("db_save_failed", err);
           return null;
@@ -1398,7 +1400,7 @@ DubDub22 Minions`;
       // Link submission to the dealer via dealer_submissions
       const submissionId = dbResult?.id;
       if (submissionId && submissionId !== "unknown") {
-        const orderType = isInquiry ? "inquiry" : isDemoOrder ? "demo_order" : "dealer";
+        const orderType = isInquiry ? "inquiry" : "dealer_order";
         await pool.query(
           `INSERT INTO dealer_submissions (dealer_id, submission_id, order_type, quantity)
            VALUES ($1, $2, $3, $4)
@@ -1592,14 +1594,13 @@ DubDub22 Minions`;
       }
 
       const isInfo = intent === "info";
-      const isDemo = intent === "demo";
-      const qty = isInfo ? null : isDemo ? "1" : quantity;
+      const qty = isInfo ? null : quantity;
 
-      // Validate quantity for order intents
+      // Validate quantity for order intents — must be 1 (demo) or multiple of 5
       if (!isInfo && qty) {
         const numQty = parseInt(qty, 10);
-        if (isNaN(numQty) || numQty < 1 || numQty > 20) {
-          return res.status(400).json({ ok: false, error: "quantity_must_be_1_to_20" });
+        if (isNaN(numQty) || numQty < 1 || numQty > 20 || (numQty !== 1 && numQty % 5 !== 0)) {
+          return res.status(400).json({ ok: false, error: "invalid_quantity", message: "Quantity must be 1 (demo) or a multiple of 5." });
         }
       }
 
@@ -1609,8 +1610,6 @@ DubDub22 Minions`;
 
       const subjectLine = isInfo
         ? "Dealer Inquiry"
-        : isDemo
-        ? "Dealer Order (Demo Can)"
         : `Dealer Order — ${qty} cans`;
 
       const bodyLines = [
@@ -1651,12 +1650,12 @@ DubDub22 Minions`;
       });
 
       // Insert into submissions table so it appears in the admin panel
-      const orderType = isInfo ? "inquiry" : isDemo ? "demo_order" : "dealer";
+      const orderType = isInfo ? "inquiry" : "dealer_order";
       const result = await pool.query(`
-        INSERT INTO submissions (type, contact_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, customer_address, customer_city, customer_state, customer_zip, has_ordered_demo)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO submissions (type, contact_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, customer_address, customer_city, customer_state, customer_zip)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
-      `, [orderType, contactName, email, phone, qty, message || null, fflFileName || null, fflFileData || null, customerAddress || null, customerCity || null, customerState || null, customerZip || null, isDemo ? 'true' : 'false']);
+      `, [orderType, contactName, email, phone, qty, message || null, fflFileName || null, fflFileData || null, customerAddress || null, customerCity || null, customerState || null, customerZip || null]);
       const newSub = result.rows[0];
 
       // Link to dealer via dealer_submissions if this email belongs to a known dealer
