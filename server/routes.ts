@@ -1772,10 +1772,10 @@ DubDub22 Minions`;
       // Preserve demo/stocking identity via type field
       const orderType = isInfo ? "inquiry" : (isDemo ? "demo" : "dealer_order");
       const result = await pool.query(`
-        INSERT INTO submissions (type, contact_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, customer_address, customer_city, customer_state, customer_zip)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO submissions (type, contact_name, business_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, customer_address, customer_city, customer_state, customer_zip)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
-      `, [orderType, contactName, email, phone, qty, message || null, fflFileName || null, fflFileData || null, customerAddress || null, customerCity || null, customerState || null, customerZip || null]);
+      `, [orderType, contactName, businessName || null, email, phone, qty, message || null, fflFileName || null, fflFileData || null, customerAddress || null, customerCity || null, customerState || null, customerZip || null]);
       const newSub = result.rows[0];
 
       // Link to dealer via dealer_submissions if this email belongs to a known dealer
@@ -1811,6 +1811,7 @@ DubDub22 Minions`;
               title: subjectLine,
               color: isInfo ? 0x666666 : 0xFF6600,
               fields: [
+                { name: "Business", value: businessName || "N/A", inline: true },
                 { name: "Contact", value: contactName, inline: true },
                 { name: "Email", value: email, inline: true },
                 { name: "Phone", value: phone || "Not provided", inline: true },
