@@ -1999,8 +1999,9 @@ DubDub22 Minions`;
         d.sot_expiry_date as dealer_sot_expiry,
         d.ffl_license_number as dealer_ffl_license_number
         FROM dealers d
-        WHERE (d.ffl_file_data IS NOT NULL AND d.ffl_file_data != '')
-           OR (d.sot_file_data IS NOT NULL AND d.sot_file_data != '')`;
+        WHERE d.ffl_reviewed = false
+          AND ((d.ffl_file_data IS NOT NULL AND d.ffl_file_data != '')
+           OR (d.sot_file_data IS NOT NULL AND d.sot_file_data != ''))`;
 
       const combinedQuery = `SELECT * FROM (${submissionsQuery}) sub UNION ALL (${dealersQuery})`;
 
@@ -2029,11 +2030,9 @@ DubDub22 Minions`;
       } else if (source === "retail_inquiry") {
         await pool.query(`DELETE FROM retail_inquiries WHERE id = $1`, [id]);
       } else if (source === "dealer") {
-        // Clear FFL/SOT files from the dealer record without deleting the dealer
-        await pool.query(
-          `UPDATE dealers SET ffl_file_data = NULL, ffl_file_name = NULL, sot_file_data = NULL, sot_file_name = NULL WHERE id = $1`,
-          [id]
-        );
+        // Mark the dealer's FFL upload as reviewed — hides it from the inquiry list
+        // without deleting any dealer data, FFL, SOT, or tax documents.
+        await pool.query(`UPDATE dealers SET ffl_reviewed = true WHERE id = $1`, [id]);
       } else {
         return res.status(400).json({ ok: false, error: "invalid_source" });
       }

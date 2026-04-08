@@ -49,6 +49,9 @@ export const dealers = pgTable("dealers", {
   salesTaxFormName: text("sales_tax_form_name"),
   taxFormOnFile: boolean("tax_form_on_file").default(false),
 
+  // FFL review flag — prevents reviewed FFL-upload records from reappearing in dealer inquiries
+  fflReviewed: boolean("ffl_reviewed").default(false),
+
   // Demo unit tracking
   hasDemoUnitShipped: boolean("has_demo_unit_shipped").default(false), // true once a dealer_order has been shipped to this dealer
 
