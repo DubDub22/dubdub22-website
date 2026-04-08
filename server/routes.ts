@@ -1537,7 +1537,8 @@ DubDub22 Minions`;
             : "");
 
       // Send auto-reply to the dealer (orders only — inquiries get the Path 1-style email above)
-      if (email && !isInquiry) {
+      // For demo orders, suppress all emails until terms acceptance on order-confirmation page
+      if (email && !isInquiry && !isDemoOrder) {
         try {
           const autoReplyLines = [
             `Thank you for ${isInquiry ? 'submitting a dealer inquiry' : 'placing a dealer order'} with DubDub22.`,
