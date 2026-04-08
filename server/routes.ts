@@ -1680,7 +1680,8 @@ DubDub22 Minions`;
       const {
         intent, contactName, businessName, email, phone,
         message, quantity, fflFileName, fflFileData,
-        customerAddress, customerCity, customerState, customerZip
+        customerAddress, customerCity, customerState, customerZip,
+        termsAccepted
       } = req.body || {};
 
       if (!contactName || !email) {
@@ -1694,6 +1695,7 @@ DubDub22 Minions`;
       }
 
       const isInfo = intent === "info";
+      const isDemo = intent === "demo";
       const qty = isInfo ? null : quantity;
 
       // Validate quantity for order intents — must be 1 (demo) or multiple of 5
@@ -1732,54 +1734,58 @@ DubDub22 Minions`;
         jpeg: "image/jpeg",
       };
 
-      // Send email to Tom / the orders team
-      await sendViaGmail({
-        to: emailTo,
-        from: isInfo ? `DubDub22 Inquiries <inquiry@dubdub22.com>` : `DubDub22 Orders <orders@dubdub22.com>`,
-        subject: `DubDub22 ${subjectLine}`,
-        text: bodyLines.join("\n"),
-        replyTo: email,
-        attachment: fflFileData && !isInfo ? {
-          filename: fflFileName || "sot-file",
-          base64Data: fflFileData,
-          contentType: contentTypeMap[ext] || "application/octet-stream",
-        } : undefined,
-      }).catch(err => {
-        console.error("retail_order_gmail_error", err);
-        // Don't fail the whole request if email fails
-      });
+      // Only send emails after T&C acceptance (termsAccepted=true from order-confirmation page)
+      if (termsAccepted) {
+        // Send email to Tom / the orders team
+        await sendViaGmail({
+          to: emailTo,
+          from: isInfo ? `DubDub22 Inquiries <inquiry@dubdub22.com>` : `DubDub22 Orders <orders@dubdub22.com>`,
+          subject: `DubDub22 ${subjectLine}`,
+          text: bodyLines.join("\n"),
+          replyTo: email,
+          attachment: fflFileData && !isInfo ? {
+            filename: fflFileName || "sot-file",
+            base64Data: fflFileData,
+            contentType: contentTypeMap[ext] || "application/octet-stream",
+          } : undefined,
+        }).catch(err => {
+          console.error("retail_order_gmail_error", err);
+          // Don't fail the whole request if email fails
+        });
 
-      // Send a confirmation email to the dealer (the submitter)
-      if (!isInfo && email) {
-        const intentLabel = intent === "demo" ? "Demo Request" : "Stocking Order";
-        const qtyLabel = intent === "demo" ? "1 unit" : `${qty} units`;
-        try {
-          await sendViaGmail({
-            to: email,
-            from: `DubDub22 Orders <orders@dubdub22.com>`,
-            subject: `DubDub22 Order Received`,
-            text: [
-              `Your ${intentLabel.toLowerCase()} for ${qtyLabel} has been received by DubDub22.`,
-              ``,
-              `Contact: ${contactName}`,
-              `Phone: ${phone || "Not provided"}`,
-              qty ? `Quantity: ${qty}` : null,
-              ``,
-              `We will review your order and send an invoice with payment information.`,
-              ``,
-              `Questions? Reply to this email or contact us at orders@dubdub22.com.`,
-              ``,
-              `— Double T Tactical — Floresville, TX — dubdub22.com`,
-            ].filter(Boolean).join("\n"),
-            replyTo: "orders@dubdub22.com",
-          });
-        } catch (dealerEmailErr) {
-          console.error("retail_order_dealer_confirmation_email_error", dealerEmailErr);
+        // Send a confirmation email to the dealer (the submitter)
+        if (!isInfo && email) {
+          const intentLabel = isDemo ? "Demo Request" : "Stocking Order";
+          const qtyLabel = isDemo ? "1 unit" : `${qty} units`;
+          try {
+            await sendViaGmail({
+              to: email,
+              from: `DubDub22 Orders <orders@dubdub22.com>`,
+              subject: `DubDub22 Order Received`,
+              text: [
+                `Your ${intentLabel.toLowerCase()} for ${qtyLabel} has been received by DubDub22.`,
+                ``,
+                `Contact: ${contactName}`,
+                `Phone: ${phone || "Not provided"}`,
+                qty ? `Quantity: ${qty}` : null,
+                ``,
+                `We will review your order and send an invoice with payment information.`,
+                ``,
+                `Questions? Reply to this email or contact us at orders@dubdub22.com.`,
+                ``,
+                `— Double T Tactical — Floresville, TX — dubdub22.com`,
+              ].filter(Boolean).join("\n"),
+              replyTo: "orders@dubdub22.com",
+            });
+          } catch (dealerEmailErr) {
+            console.error("retail_order_dealer_confirmation_email_error", dealerEmailErr);
+          }
         }
       }
 
       // Insert into submissions table so it appears in the admin panel
-      const orderType = isInfo ? "inquiry" : "dealer_order";
+      // Preserve demo/stocking identity via type field
+      const orderType = isInfo ? "inquiry" : (isDemo ? "demo" : "dealer_order");
       const result = await pool.query(`
         INSERT INTO submissions (type, contact_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, customer_address, customer_city, customer_state, customer_zip)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)

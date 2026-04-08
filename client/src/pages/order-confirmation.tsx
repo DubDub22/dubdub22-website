@@ -80,6 +80,7 @@ export default function OrderConfirmationPage() {
           customerCity: null,
           customerState: null,
           customerZip: null,
+          termsAccepted: true,
         }),
       });
       // Redirect to order-received page — Tom will review and send invoice manually
