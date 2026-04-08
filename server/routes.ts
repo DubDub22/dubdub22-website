@@ -1972,6 +1972,17 @@ DubDub22 Minions`;
     }
   });
 
+  // ── Admin: Delete Retail Inquiry ──────────────────────────────────────
+  app.delete("/api/admin/retail-inquiries/:id", requireAdmin, async (req, res) => {
+    try {
+      await pool.query(`DELETE FROM retail_inquiries WHERE id = $1`, [req.params.id]);
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error("admin_retail_inquiry_delete_error", err);
+      return res.status(500).json({ ok: false, error: "failed_to_delete" });
+    }
+  });
+
   // ── Admin: Update Warranty Request Status ─────────────────────────────
   app.patch("/api/admin/warranty-requests/:id", requireAdmin, async (req, res) => {
     try {

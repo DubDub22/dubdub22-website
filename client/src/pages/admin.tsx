@@ -8,7 +8,7 @@ import {
   ChevronRight, ArrowLeft, Building2, FileText,
   Upload, Eye, X, Search, Inbox,
   MessageSquare, ShieldCheck, Phone, Files, CheckCircle, XCircle, Send,
-  Hash, RefreshCw
+  Hash, RefreshCw, Store
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ type Dealer = {
   submissions?: Submission[];
 };
 
-type Tab = "submissions" | "warranty" | "dealer_inquiries" | "files" | "tax_forms" | "verify_ffl" | "serials";
+type Tab = "submissions" | "warranty" | "dealer_inquiries" | "retail_inquiries" | "files" | "tax_forms" | "verify_ffl" | "serials";
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
 
@@ -2037,7 +2037,111 @@ function DealerInquiriesTab({
   );
 }
 
+// ── Retail Inquiries Tab ───────────────────────────────────────────────────────
+
+function RetailInquiriesTab({
+  submissions, search, setSearch, onDelete
+}: {
+  submissions: (Submission & {
+    dealerId?: string; dealerName?: string; contactName?: string;
+    email?: string; phone?: string; message?: string; createdAt?: string;
+    status?: string; dealerFflonFile?: boolean; dealerFflExpiry?: string;
+    dealerSotOnFile?: boolean; dealerSotExpiry?: string;
+    dealerFflLicenseNumber?: string;
+  })[];
+  search: string;
+  setSearch: (s: string) => void;
+  onDelete: (sub: any) => void;
+}) {
+  const filtered = submissions.filter((sub) => {
+    if (search) {
+      const q = search.toLowerCase();
+      const s = `${fmtDate(sub.createdAt)} ${sub.contactName || ""} ${sub.dealerName || ""} ${sub.email || ""} ${sub.phone || ""}`.toLowerCase();
+      if (!s.includes(q)) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Input
+          placeholder="Search retail inquiries..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="sm:max-w-xs bg-background h-9"
+        />
+      </div>
+
+      <div className="block md:hidden space-y-3">
+        {filtered.length === 0 ? <p className="text-center py-8 text-muted-foreground">No retail inquiries.</p>
+          : filtered.map(sub => (
+            <div key={sub.id} className="border border-border rounded-lg p-3 bg-card">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-500 text-white">RETAIL</span>
+                  <span className="text-xs text-muted-foreground font-mono">{fmtDate(sub.createdAt)}</span>
+                  {sub.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${sub.status === "responded" ? "bg-green-500 text-white" : sub.status === "new" ? "bg-blue-500 text-white" : "bg-gray-500 text-white"}`}>{sub.status.toUpperCase()}</span>}
+                </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium">{sub.dealerName || "—"}</p>
+                <p className="text-xs text-muted-foreground">{sub.contactName || "—"}</p>
+                <p className="text-xs text-muted-foreground">{sub.email || "—"}</p>
+                {sub.phone && <p className="text-xs text-muted-foreground">{sub.phone}</p>}
+                {sub.message && <p className="text-xs mt-1 italic text-muted-foreground">"{sub.message}"</p>}
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-muted-foreground uppercase bg-secondary/30">
+            <tr>
+              <th className="px-3 py-2">Date</th>
+              <th className="px-3 py-2">Dealer</th>
+              <th className="px-3 py-2">Contact</th>
+              <th className="px-3 py-2">Email</th>
+              <th className="px-3 py-2">Phone</th>
+              <th className="px-3 py-2">Message</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No retail inquiries found.</td></tr>
+              : filtered.map(sub => (
+                <tr key={sub.id} className="border-b border-border hover:bg-secondary/10">
+                  <td className="px-3 py-2 text-muted-foreground font-mono text-xs">{fmtDate(sub.createdAt)}</td>
+                  <td className="px-3 py-2 font-medium">{sub.dealerName || "—"}</td>
+                  <td className="px-3 py-2">{sub.contactName || "—"}</td>
+                  <td className="px-3 py-2">{sub.email || "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{sub.phone || "—"}</td>
+                  <td className="px-3 py-2 text-xs max-w-xs truncate">{sub.message || "—"}</td>
+                  <td className="px-3 py-2">
+                    {sub.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${sub.status === "responded" ? "bg-green-500 text-white" : sub.status === "new" ? "bg-blue-500 text-white" : "bg-gray-500 text-white"}`}>{sub.status.toUpperCase()}</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Verify FFL Tab ─────────────────────────────────────────────────────────────
+
 
 function VerifyFflTab() {
   const { toast } = useToast();
@@ -2827,6 +2931,10 @@ export default function AdminPage() {
   const [dealerInquiries, setDealerInquiries] = useState<any[]>([]);
   const [dealerInquiriesSearch, setDealerInquiriesSearch] = useState("");
   const [dealerInquiryDeleteTarget, setDealerInquiryDeleteTarget] = useState<any | null>(null);
+  const [retailInquiries, setRetailInquiries] = useState<any[]>([]);
+  const [retailInquiriesSearch, setRetailInquiriesSearch] = useState("");
+  const [retailInquiryDeleteTarget, setRetailInquiryDeleteTarget] = useState<any | null>(null);
+  const [retailInquiryStatus, setRetailInquiryStatus] = useState("all");
 
   const pinForm = useForm<z.infer<typeof pinSchema>>({ resolver: zodResolver(pinSchema), defaultValues: { pin: "" } });
 
@@ -2891,6 +2999,35 @@ export default function AdminPage() {
     fetchDealerInquiries();
   }, [fetchDealerInquiries]);
 
+  const fetchRetailInquiries = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/retail-inquiries?status=${retailInquiryStatus}`);
+      if (!res.ok) throw new Error("Failed to fetch retail inquiries");
+      const data = await res.json();
+      const normalized = (data.data || []).map((r: any) => ({
+        id: r.id,
+        dealerId: r.dealer_id,
+        dealerName: r.dealer_name,
+        contactName: r.contact_name,
+        email: r.email,
+        phone: r.phone,
+        message: r.message,
+        createdAt: r.created_at,
+        status: r.status,
+        dealerFflonFile: r.dealer_ffl_on_file,
+        dealerFflExpiry: r.dealer_ffl_expiry,
+        dealerSotOnFile: r.dealer_sot_on_file,
+        dealerSotExpiry: r.dealer_sot_expiry,
+        dealerFflLicenseNumber: r.dealer_ffl_license_number,
+      }));
+      setRetailInquiries(normalized);
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }, [retailInquiryStatus]);
+
+  useEffect(() => {
+    fetchRetailInquiries();
+  }, [fetchRetailInquiries]);
+
   useEffect(() => {
     let cancelled = false;
     fetch("/api/admin/check-auth")
@@ -2901,13 +3038,14 @@ export default function AdminPage() {
           fetchSubmissions();
           fetchWarrantyRequests();
           fetchDealerInquiries();
+          fetchRetailInquiries();
           setAuthStatus("authorized");
         }
         else setAuthStatus("needs_pin");
       })
       .catch(() => { if (!cancelled) setAuthStatus("needs_pin"); });
     return () => { cancelled = true; };
-  }, [fetchSubmissions, fetchWarrantyRequests, fetchDealerInquiries]);
+  }, [fetchSubmissions, fetchWarrantyRequests, fetchDealerInquiries, fetchRetailInquiries]);
 
   const onRequestPin = async () => {
     try {
@@ -2975,6 +3113,17 @@ export default function AdminPage() {
       toast({ title: "Deleted", description: "Dealer inquiry removed." });
     } catch { toast({ title: "Error", description: "Could not delete.", variant: "destructive" }); }
     finally { setDealerInquiryDeleteTarget(null); }
+  };
+
+  const handleRetailInquiryDelete = async () => {
+    if (!retailInquiryDeleteTarget) return;
+    try {
+      const res = await fetch(`/api/admin/retail-inquiries/${retailInquiryDeleteTarget.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+      setRetailInquiries(prev => prev.filter(s => s.id !== retailInquiryDeleteTarget.id));
+      toast({ title: "Deleted", description: "Retail inquiry removed." });
+    } catch { toast({ title: "Error", description: "Could not delete.", variant: "destructive" }); }
+    finally { setRetailInquiryDeleteTarget(null); }
   };
 
 
@@ -3070,6 +3219,15 @@ export default function AdminPage() {
             <Badge variant="secondary" className="ml-2 text-xs">{dealerInquiries.length}</Badge>
           </button>
           <button
+            onClick={() => { setTab("retail_inquiries"); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              tab === "retail_inquiries" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Store className="w-4 h-4 inline mr-1.5" />Retail Inquiries
+            <Badge variant="secondary" className="ml-2 text-xs">{retailInquiries.length}</Badge>
+          </button>
+          <button
             onClick={() => { setTab("files"); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === "files" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -3143,6 +3301,19 @@ export default function AdminPage() {
                 search={dealerInquiriesSearch}
                 setSearch={setDealerInquiriesSearch}
                 onDelete={(sub) => setDealerInquiryDeleteTarget(sub)}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {tab === "retail_inquiries" && (
+          <Card className="bg-card/50 border-border">
+            <CardContent className="p-4 md:p-6">
+              <RetailInquiriesTab
+                submissions={retailInquiries}
+                search={retailInquiriesSearch}
+                setSearch={setRetailInquiriesSearch}
+                onDelete={(sub) => setRetailInquiryDeleteTarget(sub)}
               />
             </CardContent>
           </Card>
@@ -3230,6 +3401,22 @@ export default function AdminPage() {
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 border-border">Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleDealerInquiryDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Retail Inquiry delete confirmation */}
+      <AlertDialog open={!!retailInquiryDeleteTarget} onOpenChange={open => !open && setRetailInquiryDeleteTarget(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Retail Inquiry?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              This will permanently remove the inquiry from {retailInquiryDeleteTarget?.dealerName || retailInquiryDeleteTarget?.contactName}. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 border-border">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleRetailInquiryDelete}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
