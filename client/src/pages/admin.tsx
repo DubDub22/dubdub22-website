@@ -252,7 +252,7 @@ function DocBadge({ type, fileName, fileData, submissionId }: { type: "ffl" | "s
               try {
                 const res = await fetch(endpoint.replace(":id", submissionId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
                 console.log(`Upload ${type} response:`, res.status, await res.text().catch(() => ""));
-                if (res.ok) { toast({ title: `${label} uploaded`, description: file.name }); window.location.reload(); }
+                if (res.ok) { toast({ title: `${label} uploaded`, description: file.name }); window.location.href = window.location.href; }
                 else { const err = await res.json().catch(() => ({})); toast({ title: `Upload failed`, description: err.error || res.statusText, variant: "destructive" }); }
               } catch (err) { console.error(`Upload ${type} error:`, err); toast({ title: `Upload failed`, variant: "destructive" }); }
             };
