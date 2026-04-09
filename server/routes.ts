@@ -2869,6 +2869,89 @@ print(pdf_path)
     }
   });
 
+  // ── Request Docs ───────────────────────────────────────────────────────────
+  // Emails the dealer/FFL what documents we still need, attaching the Multi-State Tax Affidavit if missing
+  app.post("/api/admin/submissions/:id/request-docs", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Fetch submission + joined dealer docs
+      const rows = await pool.query(`
+        SELECT
+          s.id, s.contact_name, s.email, s.business_name,
+          s.ffl_license_number,
+          s.ffl_file_name, s.ffl_file_data,
+          s.sot_file_name, s.sot_file_data,
+          s.tax_form_name, s.tax_form_data,
+          s.state_tax_file_name, s.state_tax_file_data,
+          d.ffl_file_name AS dealer_ffl_file_name,
+          d.sot_file_name AS dealer_sot_file_name,
+          d.sales_tax_form_name AS dealer_tax_form_name,
+          d.state_tax_file_name AS dealer_state_tax_file_name
+        FROM submissions s
+        LEFT JOIN dealers d ON d.ffl_license_number = s.ffl_license_number AND s.ffl_license_number IS NOT NULL AND s.ffl_license_number != ''
+        WHERE s.id = $1
+      `, [id]);
+
+      if (!rows.rows.length) return res.status(404).json({ ok: false, error: "submission_not_found" });
+
+      const s = rows.rows[0];
+      const contactName = s.contact_name || "there";
+      const email = s.email;
+      const businessName = s.business_name || "";
+
+      // Determine what's missing — check submission first, then dealer profile
+      const hasFfl = !!(s.ffl_file_name && s.ffl_file_data) || !!(s.dealer_ffl_file_name);
+      const hasSot = !!(s.sot_file_name && s.sot_file_data) || !!(s.dealer_sot_file_name);
+      const hasStateTax = !!(s.state_tax_file_name && s.state_tax_file_data) || !!(s.dealer_state_tax_file_name);
+
+      const missing: string[] = [];
+      if (!hasFfl) missing.push("a signed copy of your FFL (Federal Firearms License)");
+      if (!hasSot) missing.push("a signed copy of your SOT (Special Occupational Tax) form");
+      if (!hasStateTax) missing.push("a completed Multi-State Tax Affidavit");
+
+      if (missing.length === 0) {
+        return res.json({ ok: true, message: "all_docs_on_file" });
+      }
+
+      const subject = `Action Required: Additional Documents Needed — DubDub22 Order`;
+      const text = [
+        `Hi ${contactName}${businessName ? ` (${businessName})` : ""},`,
+        "",
+        "Thank you for your order with Double T Tactical / DubDub22. Before we can process and ship your order, we need the following additional documents:",
+        "",
+        ...missing.map(m => `  • ${m}`),
+        "",
+        "Please reply to this email with the requested documents at your earliest convenience. You can also email them directly to docs@dubdub22.com.",
+        "",
+        "If you have any questions, don't hesitate to reach out.",
+        "",
+        "— Double T Tactical",
+        "DubDub22 / Double T Tactical",
+        "docs@dubdub22.com",
+      ].join("\n");
+
+      // Attach Multi-State Tax Affidavit if state tax is missing
+      const attachment = (!hasStateTax && multiStateTaxFormBase64)
+        ? { filename: "Multi-State_Tax_Affidavit.pdf", base64Data: multiStateTaxFormBase64, contentType: "application/pdf" }
+        : undefined;
+
+      await sendViaGmail({
+        to: email,
+        subject,
+        text,
+        from: `DubDub22 Documents <docs@dubdub22.com>`,
+        replyTo: "docs@dubdub22.com",
+        attachment,
+      });
+
+      return res.json({ ok: true, missing: missing.length, attached: !!attachment });
+    } catch (err: any) {
+      console.error("request_docs_error", err);
+      return res.status(500).json({ ok: false, error: err?.message || "server_error" });
+    }
+  });
+
   app.post("/api/contact", publicFormLimiter, async (req, res) => {
     try {
       const { name, email, subject, message } = req.body || {};

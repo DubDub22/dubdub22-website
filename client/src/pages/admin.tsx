@@ -410,7 +410,8 @@ function SubmissionsTab({
                 onArchive={() => setArchiveTarget(sub)}
                 onDelete={() => setDeleteTarget(sub)}
                 onShip={() => setShipTarget(sub)}
-                onInvoice={() => setInvoiceTarget(sub)} />)}
+                onInvoice={() => setInvoiceTarget(sub)}
+                onRequestDocs={() => setRequestDocsTarget(sub)} />)}
           </tbody>
         </table>
       </div>
@@ -506,7 +507,7 @@ function SubmissionCard({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: 
   );
 }
 
-function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: Submission; onArchive: () => void; onDelete: () => void; onShip: () => void; onInvoice: () => void }) {
+function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestDocs }: { sub: Submission; onArchive: () => void; onDelete: () => void; onShip: () => void; onInvoice: () => void; onRequestDocs: () => void }) {
   return (
     <tr className={`border-b border-border hover:bg-secondary/10 ${sub.archived ? "opacity-50" : ""}`}>
       <td className="px-3 py-3 whitespace-nowrap text-muted-foreground text-xs font-mono">{fmtDate(sub.createdAt)}</td>
@@ -564,6 +565,14 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: S
               onClick={onInvoice}
             >
               {(sub as any).hasInvoice ? `✓ Invoice Sent` : "Send Invoice"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs whitespace-nowrap w-full mt-1 border-blue-600 text-blue-600 hover:bg-blue-50"
+              onClick={onRequestDocs}
+            >
+              Request Docs
             </Button>
           </div>
         )}
@@ -2684,6 +2693,8 @@ export default function AdminPage() {
   const [deleteTarget, setDeleteTarget] = useState<Submission | null>(null);
   const [shipTarget, setShipTarget] = useState<Submission | null>(null);
   const [invoiceTarget, setInvoiceTarget] = useState<Submission | null>(null);
+  const [requestDocsTarget, setRequestDocsTarget] = useState<Submission | null>(null);
+  const [requestDocsSaving, setRequestDocsSaving] = useState(false);
   const [warrantyRequests, setWarrantyRequests] = useState<any[]>([]);
   const [warrantySearch, setWarrantySearch] = useState("");
   const [warrantyStatus, setWarrantyStatus] = useState("all");
@@ -3198,6 +3209,51 @@ export default function AdminPage() {
 
       <ShipDialog sub={shipTarget} open={!!shipTarget} onClose={() => setShipTarget(null)} />
       <InvoiceDialog sub={invoiceTarget} open={!!invoiceTarget} onClose={() => setInvoiceTarget(null)} />
+
+      <Dialog open={!!requestDocsTarget} onOpenChange={(o) => { if (!o) setRequestDocsTarget(null); }}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle>Request Documents</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Send an email to {requestDocsTarget?.email} requesting missing documents.
+            </p>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm font-medium">The following will be requested:</p>
+            <ul className="text-sm space-y-1 list-disc pl-5">
+              {requestDocsTarget && !requestDocsTarget.dealerFflFileData && !requestDocsTarget.fflFileData && <li>FFL (Federal Firearms License)</li>}
+              {requestDocsTarget && !requestDocsTarget.dealerSotFileData && !requestDocsTarget.sotFileData && <li>SOT (Special Occupational Tax)</li>}
+              {requestDocsTarget && !requestDocsTarget.dealerStateTaxFileData && !requestDocsTarget.stateTaxFileData && <li>Multi-State Tax Affidavit <span className="text-blue-600 font-medium">(will be attached)</span></li>}
+            </ul>
+            {requestDocsTarget && !requestDocsTarget.dealerStateTaxFileData && !requestDocsTarget.stateTaxFileData && (
+              <p className="text-xs text-muted-foreground">The Multi-State Tax Affidavit PDF will be attached to the email automatically.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRequestDocsTarget(null)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!requestDocsTarget) return;
+                setSaving(true);
+                try {
+                  const res = await fetch(`/api/admin/submissions/${requestDocsTarget.id}/request-docs`, { method: "POST" });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "Failed");
+                  toast({ title: "Email Sent!", description: data.missing ? `${data.missing} item(s) requested.` : "All docs already on file." });
+                  setRequestDocsTarget(null);
+                } catch {
+                  toast({ title: "Error Sending Email", variant: "destructive" });
+                } finally {
+                  setRequestDocsSaving(false);
+                }
+              }}
+              disabled={requestDocsSaving}
+            >
+              {requestDocsSaving ? "Sending..." : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
