@@ -242,9 +242,10 @@ function DocBadge({ type, fileName, fileData, submissionId }: { type: "ffl" | "s
               else { body.taxFormName = file.name; body.taxFormData = base64; }
               try {
                 const res = await fetch(endpoint.replace(":id", submissionId), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                console.log(`Upload ${type} response:`, res.status, await res.text().catch(() => ""));
                 if (res.ok) { toast({ title: `${label} uploaded`, description: file.name }); window.location.reload(); }
-                else toast({ title: `Upload failed`, variant: "destructive" });
-              } catch { toast({ title: `Upload failed`, variant: "destructive" }); }
+                else { const err = await res.json().catch(() => ({})); toast({ title: `Upload failed`, description: err.error || res.statusText, variant: "destructive" }); }
+              } catch (err) { console.error(`Upload ${type} error:`, err); toast({ title: `Upload failed`, variant: "destructive" }); }
             };
             reader.readAsDataURL(file);
           }}
