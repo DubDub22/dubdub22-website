@@ -499,11 +499,12 @@ function SubmissionCard({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: 
       {/* Documents — mobile */}
       <div className="border-t border-border pt-2 mt-2">
         <div className="flex flex-wrap gap-1.5">
-          {/* Dealer order page receives raw DB columns (snake_case) — use snake_case props */}
-          <DocBadge type="ffl" fileName={sub.ffl_file_name} fileData={sub.ffl_file_data} orDealerFileData={sub.dealer_ffl_file_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
-          <DocBadge type="sot" fileName={sub.sot_file_name} fileData={sub.sot_file_data} orDealerFileData={sub.dealer_sot_file_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
-          <DocBadge type="tax" fileName={sub.tax_form_name} fileData={sub.tax_form_data} orDealerFileData={sub.dealer_tax_form_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
-          <DocBadge type="state_tax" fileName={sub.state_tax_file_name} fileData={sub.state_tax_file_data} orDealerFileData={sub.dealer_state_tax_file_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
+          {/* Admin API returns camelCase (routes.ts maps DB columns to camelCase) */}
+          {/* Note: API returns dealerFflFileName (filename) not base64 — use filename as orDealerFileData since truthy string = green badge */}
+          <DocBadge type="ffl" fileName={sub.fflFileName} fileData={sub.fflFileData} orDealerFileData={sub.dealerFflFileName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
+          <DocBadge type="sot" fileName={sub.sotFileName} fileData={sub.sotFileData} orDealerFileData={sub.dealerSotFileName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
+          <DocBadge type="tax" fileName={sub.taxFormName} fileData={sub.taxFormData} orDealerFileData={sub.dealerTaxFormName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
+          <DocBadge type="state_tax" fileName={sub.stateTaxFileName} fileData={sub.stateTaxFileData} orDealerFileData={sub.dealerStateTaxFileName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
         </div>
       </div>
       {/* Shipping */}
@@ -573,11 +574,12 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestD
       </td>
       <td className="px-3 py-3">
         <div className="flex flex-col gap-1">
-          {/* Dealer order page receives raw DB columns (snake_case) — use snake_case props */}
-          <DocBadge type="ffl" fileName={sub.ffl_file_name} fileData={sub.ffl_file_data} orDealerFileData={sub.dealer_ffl_file_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
-          <DocBadge type="sot" fileName={sub.sot_file_name} fileData={sub.sot_file_data} orDealerFileData={sub.dealer_sot_file_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
-          <DocBadge type="tax" fileName={sub.tax_form_name} fileData={sub.tax_form_data} orDealerFileData={sub.dealer_tax_form_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
-          <DocBadge type="state_tax" fileName={sub.state_tax_file_name} fileData={sub.state_tax_file_data} orDealerFileData={sub.dealer_state_tax_file_data} submissionId={sub.id} fflLicenseNumber={sub.ffl_license_number} createdAt={sub.created_at} />
+          {/* Admin API returns camelCase (routes.ts maps DB columns to camelCase) */}
+          {/* Note: API returns dealerFflFileName (filename) not base64 — use filename as orDealerFileData since truthy string = green badge */}
+          <DocBadge type="ffl" fileName={sub.fflFileName} fileData={sub.fflFileData} orDealerFileData={sub.dealerFflFileName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
+          <DocBadge type="sot" fileName={sub.sotFileName} fileData={sub.sotFileData} orDealerFileData={sub.dealerSotFileName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
+          <DocBadge type="tax" fileName={sub.taxFormName} fileData={sub.taxFormData} orDealerFileData={sub.dealerTaxFormName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
+          <DocBadge type="state_tax" fileName={sub.stateTaxFileName} fileData={sub.stateTaxFileData} orDealerFileData={sub.dealerStateTaxFileName as any} submissionId={sub.id} fflLicenseNumber={sub.fflLicenseNumber} createdAt={sub.createdAt} />
         </div>
       </td>
       <td className="px-3 py-3">
