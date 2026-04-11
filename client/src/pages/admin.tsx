@@ -2128,6 +2128,7 @@ function DealerInquiriesTab({
                 <p className="text-xs text-muted-foreground">{sub.contactName || "—"}</p>
                 <p className="text-xs text-muted-foreground">{sub.email || "—"}</p>
                 {sub.phone && <p className="text-xs text-muted-foreground">{sub.phone}</p>}
+                {sub.message && <p className="text-xs mt-1 italic text-muted-foreground border-t border-border pt-1">{sub.message}</p>}
                 <DocCautionBanner dealer={sub} />
               </div>
             </div>
@@ -2140,11 +2141,12 @@ function DealerInquiriesTab({
             <tr>
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Business</th>
+              <th className="px-3 py-2">Message</th>
               <th className="px-3 py-2 w-10"></th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? <tr><td colSpan={3} className="text-center py-8 text-muted-foreground">No dealer inquiries found.</td></tr>
+            {filtered.length === 0 ? <tr><td colSpan={4} className="text-center py-8 text-muted-foreground">No dealer inquiries found.</td></tr>
               : filtered.map(sub => (
                 <tr key={sub.id} className="border-b border-border hover:bg-secondary/10">
                   <td className="px-3 py-2 text-muted-foreground font-mono text-xs">{fmtDate(sub.createdAt)}</td>
@@ -2154,6 +2156,9 @@ function DealerInquiriesTab({
                     {sub.phone && <div className="text-xs text-muted-foreground">{sub.phone}</div>}
                     {sub.email && <div className="text-xs text-muted-foreground">{sub.email}</div>}
                     <DocCautionBanner dealer={sub} />
+                  </td>
+                  <td className="px-3 py-2 max-w-xs">
+                    <p className="text-xs text-muted-foreground truncate" title={sub.message || ""}>{sub.message || "—"}</p>
                   </td>
                   <td className="px-3 py-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
