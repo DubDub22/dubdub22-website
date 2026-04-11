@@ -405,7 +405,8 @@ function SubmissionsTab({
                 onDelete={() => setDeleteTarget(sub)}
                 onShip={() => setShipTarget(sub)}
                 onInvoice={() => setInvoiceTarget(sub)}
-                onRequestDocs={() => setRequestDocsTarget(sub)} />)}
+                onRequestDocs={() => setRequestDocsTarget(sub)}
+                onForm3Submitted={() => setForm3SubmittedTarget(sub)} />)}
           </tbody>
         </table>
       </div>
@@ -509,7 +510,7 @@ function SubmissionCard({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: 
   );
 }
 
-function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestDocs }: { sub: Submission; onArchive: () => void; onDelete: () => void; onShip: () => void; onInvoice: () => void; onRequestDocs: () => void }) {
+function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestDocs, onForm3Submitted }: { sub: Submission; onArchive: () => void; onDelete: () => void; onShip: () => void; onInvoice: () => void; onRequestDocs: () => void; onForm3Submitted?: () => void }) {
   return (
     <tr className={`border-b border-border hover:bg-secondary/10 ${sub.archived ? "opacity-50" : ""}`}>
       <td className="px-3 py-3 whitespace-nowrap text-muted-foreground text-xs font-mono">{fmtDate(sub.createdAt)}</td>
@@ -568,7 +569,7 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestD
             <Button
               variant="outline"
               size="sm"
-              className={`h-7 text-xs whitespace-nowrap w-full mt-1 ${(sub as any).hasInvoice
+              className={`h-7 text-xs whitespace-nowrap ${(sub as any).hasInvoice
                 ? "border-green-600 text-green-600 hover:bg-green-50"
                 : "border-red-600 text-red-600 hover:bg-red-50"
               }`}
@@ -579,10 +580,22 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestD
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs whitespace-nowrap w-full mt-1 border-blue-600 text-blue-600 hover:bg-blue-50"
+              className="h-7 text-xs whitespace-nowrap border-blue-600 text-blue-600 hover:bg-blue-50"
               onClick={onRequestDocs}
             >
               Request Docs
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`h-7 text-xs whitespace-nowrap ${(sub as any).form3SubmittedAt
+                ? "border-green-600 text-green-600 hover:bg-green-50"
+                : "border-purple-600 text-purple-600 hover:bg-purple-50"
+              }`}
+              onClick={(sub as any).form3SubmittedAt ? undefined : (sub as any).onForm3Submitted}
+              title={(sub as any).form3SubmittedAt ? "Form 3 already submitted" : "Send Form 3 Submitted email"}
+            >
+              {(sub as any).form3SubmittedAt ? "✓ Form 3 Sent" : "Form 3 Submitted"}
             </Button>
           </div>
         )}
@@ -2705,6 +2718,8 @@ export default function AdminPage() {
   const [invoiceTarget, setInvoiceTarget] = useState<Submission | null>(null);
   const [requestDocsTarget, setRequestDocsTarget] = useState<Submission | null>(null);
   const [requestDocsSaving, setRequestDocsSaving] = useState(false);
+  const [form3SubmittedTarget, setForm3SubmittedTarget] = useState<Submission | null>(null);
+  const [form3SubmittedSaving, setForm3SubmittedSaving] = useState(false);
   const [warrantyRequests, setWarrantyRequests] = useState<any[]>([]);
   const [warrantySearch, setWarrantySearch] = useState("");
   const [warrantyStatus, setWarrantyStatus] = useState("all");
@@ -3260,6 +3275,52 @@ export default function AdminPage() {
               disabled={requestDocsSaving}
             >
               {requestDocsSaving ? "Sending..." : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!form3SubmittedTarget} onOpenChange={(o) => { if (!o) setForm3SubmittedTarget(null); }}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle>Form 3 Submitted</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Send Form 3 notification to {form3SubmittedTarget?.email}.
+            </p>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm font-medium">The email will include:</p>
+            <ul className="text-sm space-y-1 list-disc pl-5">
+              <li>Form 3 submitted — preparing for shipment</li>
+              {form3SubmittedTarget && !form3SubmittedTarget.dealerFflFileData && !form3SubmittedTarget.fflFileData && <li>FFL (still missing)</li>}
+              {form3SubmittedTarget && !form3SubmittedTarget.dealerSotFileData && !form3SubmittedTarget.sotFileData && <li>SOT (still missing)</li>}
+              {form3SubmittedTarget && !form3SubmittedTarget.dealerStateTaxFileData && !form3SubmittedTarget.stateTaxFileData && <li>Multi-State Tax Affidavit <span className="text-blue-600 font-medium">(will be attached)</span></li>}
+              {(!form3SubmittedTarget?.dealerFflFileData && !form3SubmittedTarget?.fflFileData && !form3SubmittedTarget?.dealerSotFileData && !form3SubmittedTarget?.sotFileData && !form3SubmittedTarget?.dealerStateTaxFileData && !form3SubmittedTarget?.stateTaxFileData) && <li className="text-green-600 font-medium">All docs on file ✓</li>}
+            </ul>
+            <p className="text-xs text-muted-foreground">Invoice will be sent after Form 3 approval.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setForm3SubmittedTarget(null)}>Cancel</Button>
+            <Button
+              onClick={async () => {
+                if (!form3SubmittedTarget) return;
+                setForm3SubmittedSaving(true);
+                try {
+                  const res = await fetch(`/api/admin/submissions/${form3SubmittedTarget.id}/form3-submitted`, { method: "POST" });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "Failed");
+                  toast({ title: "Email Sent!", description: "Form 3 submitted notification sent." });
+                  setForm3SubmittedTarget(null);
+                  onFetchSubmissions();
+                } catch {
+                  toast({ title: "Error Sending Email", variant: "destructive" });
+                } finally {
+                  setForm3SubmittedSaving(false);
+                }
+              }}
+              disabled={form3SubmittedSaving}
+            >
+              {form3SubmittedSaving ? "Sending..." : "Send Email"}
             </Button>
           </DialogFooter>
         </DialogContent>

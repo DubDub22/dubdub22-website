@@ -549,6 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Track which dealer this submission links to so the frontend can request the right file path
         fflLicenseNumber: s.ffl_license_number,
         createdAt: s.created_at,
+        form3SubmittedAt: s.form3_submitted_at,
       }));
       return res.json({ ok: true, data: mapped });
     } catch (err: any) {
@@ -3014,6 +3015,80 @@ print(pdf_path)
       return res.json({ ok: true, missing: missing.length, attached: !!attachment });
     } catch (err: any) {
       console.error("request_docs_error", err);
+      return res.status(500).json({ ok: false, error: err?.message || "server_error" });
+    }
+  });
+
+  // ── Form 3 Submitted ──────────────────────────────────────────────────────────
+  app.post("/api/admin/submissions/:id/form3-submitted", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const rows = await pool.query(`
+        SELECT s.id, s.contact_name, s.email, s.business_name,
+          s.ffl_license_number,
+          s.ffl_file_name, s.ffl_file_data,
+          s.sot_file_name, s.sot_file_data,
+          s.tax_form_name, s.tax_form_data,
+          s.state_tax_file_name, s.state_tax_file_data,
+          d.ffl_file_name AS dealer_ffl_file_name,
+          d.sot_file_name AS dealer_sot_file_name,
+          d.sales_tax_form_name AS dealer_tax_form_name,
+          d.state_tax_file_name AS dealer_state_tax_file_name
+        FROM submissions s
+        LEFT JOIN dealers d ON d.ffl_license_number = s.ffl_license_number AND s.ffl_license_number IS NOT NULL AND s.ffl_license_number != ''
+        WHERE s.id = $1
+      `, [id]);
+
+      if (!rows.rows.length) return res.status(404).json({ ok: false, error: "submission_not_found" });
+
+      const s = rows.rows[0];
+      const contactName = s.contact_name || "there";
+      const email = s.email;
+      const businessName = s.business_name || "";
+
+      const hasFfl = !!(s.ffl_file_name && s.ffl_file_data) || !!(s.dealer_ffl_file_name);
+      const hasSot = !!(s.sot_file_name && s.sot_file_data) || !!(s.dealer_sot_file_name);
+      const hasStateTax = !!(s.state_tax_file_name && s.state_tax_file_data) || !!(s.dealer_state_tax_file_name);
+
+      const missing: string[] = [];
+      if (!hasFfl) missing.push("a signed copy of your FFL (Federal Firearms License)");
+      if (!hasSot) missing.push("a signed copy of your SOT (Special Occupational Tax) form");
+      if (!hasStateTax) missing.push("a completed Multi-State Tax Affidavit");
+
+      const subject = `Form 3 Submitted — DubDub22 Order`;
+      const text = [
+        `Hi ${contactName}${businessName ? ` (${businessName})` : ""},`,
+        "",
+        `Your Form 3 has been submitted to prepare for shipment.`,
+        "",
+        missing.length > 0 ? `We are still missing the following documents:` : "All required documents are on file.",
+        missing.length > 0 ? "" : null,
+        ...missing.map(m => `  • ${m}`),
+        "",
+        `Upon Form 3 Approval, your invoice will be sent to manage payment prior to shipment.`,
+        "",
+        "Thank you for choosing Double T Tactical / DubDub22.",
+        "",
+        `— Double T Tactical`,
+        `DubDub22 / Double T Tactical`,
+        `docs@dubdub22.com`,
+      ].filter(l => l !== null).join("\n");
+
+      await sendViaGmail({
+        to: email,
+        subject,
+        text,
+        from: `DubDub22 Documents <docs@dubdub22.com>`,
+        replyTo: "docs@dubdub22.com",
+      });
+
+      // Record that Form 3 was submitted
+      await pool.query(`UPDATE submissions SET form3_submitted_at = $1 WHERE id = $2`, [new Date().toISOString(), id]);
+
+      return res.json({ ok: true, missing: missing.length });
+    } catch (err: any) {
+      console.error("form3_submitted_error", err);
       return res.status(500).json({ ok: false, error: err?.message || "server_error" });
     }
   });
