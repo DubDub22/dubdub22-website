@@ -2157,8 +2157,8 @@ function DealerInquiriesTab({
                     {sub.email && <div className="text-xs text-muted-foreground">{sub.email}</div>}
                     <DocCautionBanner dealer={sub} />
                   </td>
-                  <td className="px-3 py-2 max-w-xs">
-                    <p className="text-xs text-muted-foreground truncate" title={sub.message || ""}>{sub.message || "—"}</p>
+                  <td className="px-3 py-2">
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{sub.message || "—"}</p>
                   </td>
                   <td className="px-3 py-2">
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => onDelete(sub)}>
@@ -2258,7 +2258,7 @@ function RetailInquiriesTab({
                   <td className="px-3 py-2">{sub.contactName || "—"}</td>
                   <td className="px-3 py-2">{sub.email || "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{sub.phone || "—"}</td>
-                  <td className="px-3 py-2 text-xs max-w-xs truncate">{sub.message || "—"}</td>
+                  <td className="px-3 py-2"><p className="text-xs text-muted-foreground whitespace-pre-wrap">{sub.message || "—"}</p></td>
                   <td className="px-3 py-2">
                     {sub.status && <span className={`px-2 py-0.5 rounded text-xs font-bold ${sub.status === "responded" ? "bg-green-500 text-white" : sub.status === "new" ? "bg-blue-500 text-white" : "bg-gray-500 text-white"}`}>{sub.status.toUpperCase()}</span>}
                   </td>
