@@ -549,6 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Track which dealer this submission links to so the frontend can request the right file path
         fflLicenseNumber: s.ffl_license_number,
         createdAt: s.created_at,
+        order_type: s.order_type,
         form3SubmittedAt: s.form3_submitted_at,
       }));
       return res.json({ ok: true, data: mapped });
