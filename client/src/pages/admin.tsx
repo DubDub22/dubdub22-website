@@ -324,6 +324,7 @@ function SubmissionsTab({
   submissions: Submission[]; isLoading: boolean;
   search: string; setSearch: (s: string) => void;
   sortDir: "desc" | "asc"; setSortDir: (d: "desc" | "asc") => void;
+  sortBy: "date" | "quantity"; setSortBy: (s: "date" | "quantity") => void;
   showArchived: boolean; setShowArchived: (v: boolean) => void;
   setArchiveTarget: (s: Submission | null) => void;
   setShipTarget: (s: Submission | null) => void;
@@ -343,6 +344,11 @@ function SubmissionsTab({
     return true;
   }).sort((a, b) => {
     const t = sortDir === "desc" ? -1 : 1;
+    if (sortBy === "quantity") {
+      const qA = parseInt(String(a.quantity || 0));
+      const qB = parseInt(String(b.quantity || 0));
+      return (qA - qB) * t;
+    }
     return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * t;
   });
 
@@ -355,6 +361,10 @@ function SubmissionsTab({
           onChange={(e) => setSearch(e.target.value)}
           className="sm:max-w-xs bg-background h-9"
         />
+        <Button variant="outline" size="sm" onClick={() => setSortBy(s => s === "date" ? "quantity" : "date")}
+          className="h-9 bg-background text-xs whitespace-nowrap">
+          Sort: {sortBy === "date" ? "Date" : "Qty"}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setSortDir(d => d === "desc" ? "asc" : "desc")}
           className="h-9 bg-background text-xs whitespace-nowrap">
           {sortDir === "desc" ? "↓ Newest" : "↑ Oldest"}
@@ -2714,6 +2724,7 @@ export default function AdminPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [archivedFromFilter, setArchivedFromFilter] = useState("");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [sortBy, setSortBy] = useState<"date" | "quantity">("date");
   const [archiveTarget, setArchiveTarget] = useState<Submission | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Submission | null>(null);
   const [shipTarget, setShipTarget] = useState<Submission | null>(null);
@@ -3058,7 +3069,7 @@ export default function AdminPage() {
               <SubmissionsTab
                 submissions={submissions} isLoading={isLoading}
                 search={search} setSearch={setSearch}
-                sortDir={sortDir} setSortDir={setSortDir}
+                sortDir={sortDir} setSortDir={setSortDir} sortBy={sortBy} setSortBy={setSortBy}
                 showArchived={showArchived} setShowArchived={setShowArchived}
                 setArchiveTarget={setArchiveTarget}
                 setShipTarget={setShipTarget} setInvoiceTarget={setInvoiceTarget}
