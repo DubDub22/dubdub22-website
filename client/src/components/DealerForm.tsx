@@ -15,7 +15,11 @@ const dealerFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
   confirmEmail: z.string().email({ message: "Please confirm your email address." }),
   phone: z.string().min(13, { message: "Phone number is required." }),
-  fflNumber: z.string().min(1, { message: "FFL number is required." }),
+  fflNumber: z.string()
+    .min(1, { message: "FFL number is required." })
+    .regex(/^\d-\d{2}-\d{3}-\d{2}-\d{2}-\d{5}$/, {
+      message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)."
+    }),
   fflName: z.string().min(2, { message: "FFL name is required." }),
   address: z.string().min(5, { message: "Address is required." }),
   city: z.string().min(2, { message: "City is required." }),
@@ -194,7 +198,8 @@ export default function DealerForm() {
                 <FormField control={form.control} name="fflNumber" render={({ field }) => (
                   <FormItem>
                     <FormLabel>FFL Number</FormLabel>
-                    <FormControl><Input placeholder="12345-AT-XYZ" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                    <FormControl><Input placeholder="X-XX-XXX-XX-XX-XXXXX" {...field} className="bg-card border-border focus:border-primary" /></FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">Format: X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)</p>
                     <FormMessage className="mt-2 inline-block bg-black/80 text-red-300 px-2 py-1 rounded-md font-semibold border border-red-500/40" />
                   </FormItem>
                 )} />

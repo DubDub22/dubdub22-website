@@ -23,7 +23,7 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -74,6 +74,10 @@ type Submission = {
   dealer_order_quantity?: string;
   archived?: boolean;
   archived_from?: string;
+  customerAddress?: string;
+  customerCity?: string;
+  customerState?: string;
+  customerZip?: string;
 };
 
 type Dealer = {
@@ -145,7 +149,11 @@ const dealerFormSchema = z.object({
   sotPeriodEnd: z.string().optional(),
   sotControlNumber: z.string().optional(),
   sotReceiptDate: z.string().optional(),
-  fflLicenseNumber: z.string().optional(),
+  fflLicenseNumber: z.string()
+    .regex(/^\d-\d{2}-\d{3}-\d{2}-\d{2}-\d{5}$/, {
+      message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)."
+    })
+    .optional(),
   fflLicenseType: z.string().optional(),
   fflExpiry: z.string().optional(),
   fflLoaExpiry: z.string().optional(),
@@ -319,7 +327,9 @@ function fmtDate(d: string | Date) {
 function SubmissionsTab({
   submissions, isLoading, search, setSearch,
   sortDir, setSortDir, sortBy, setSortBy, showArchived, setShowArchived,
-  setArchiveTarget, setShipTarget, setInvoiceTarget, onFetchSubmissions
+  setArchiveTarget, setShipTarget, setInvoiceTarget, setDeleteTarget,
+  setRequestDocsTarget, setForm3SubmittedTarget,
+  onFetchSubmissions
 }: {
   submissions: Submission[]; isLoading: boolean;
   search: string; setSearch: (s: string) => void;
@@ -329,6 +339,9 @@ function SubmissionsTab({
   setArchiveTarget: (s: Submission | null) => void;
   setShipTarget: (s: Submission | null) => void;
   setInvoiceTarget: (s: Submission | null) => void;
+  setDeleteTarget: (s: Submission | null) => void;
+  setRequestDocsTarget: (s: Submission | null) => void;
+  setForm3SubmittedTarget: (s: Submission | null) => void;
   onFetchSubmissions: () => void;
 }) {
   // Exclude warranty submissions, and dealer inquiries (type=dealer + order_type=inquiry) — they go to Dealer Inquiries tab
@@ -454,10 +467,10 @@ function SubmissionCard({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: 
         </div>
       </div>
       <div className="space-y-1 mb-2">
-        <p className="text-sm font-semibold">{sub.contactName}</p>
-        <p className="text-xs text-muted-foreground">{sub.email}</p>
+        {sub.businessName && <p className="text-sm font-semibold">{sub.businessName}</p>}
+        {sub.contactName && <p className="text-xs text-muted-foreground">{sub.contactName}</p>}
+        {sub.email && <p className="text-xs text-muted-foreground">{sub.email}</p>}
         {sub.phone && <p className="text-xs text-muted-foreground">{sub.phone}</p>}
-        {sub.businessName && <p className="text-xs px-1.5 py-0.5 bg-secondary rounded inline-block">{sub.businessName}</p>}
       </div>
       <div className="border-t border-border pt-2 space-y-1">
         {sub.type === "dealer" || sub.type === "dealer_order" ? (
@@ -530,10 +543,10 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestD
         </span>
       </td>
       <td className="px-3 py-3">
-        <div className="font-semibold text-sm"><CopyableText text={sub.contactName || ""} /></div>
-        <div className="text-muted-foreground text-xs"><CopyableText text={sub.email} /></div>
+        {sub.businessName && <div className="font-semibold text-sm"><CopyableText text={sub.businessName} /></div>}
+        {sub.contactName && <div className="text-muted-foreground text-xs"><CopyableText text={sub.contactName} /></div>}
+        {sub.email && <div className="text-muted-foreground text-xs"><CopyableText text={sub.email} /></div>}
         {sub.phone && <div className="text-muted-foreground text-xs"><CopyableText text={sub.phone} /></div>}
-        {sub.businessName && <div className="mt-1 text-xs px-1.5 py-0.5 bg-secondary rounded inline-block">{sub.businessName}</div>}
       </td>
       <td className="px-3 py-3">
         {sub.type === "dealer" || sub.type === "dealer_order" ? (
@@ -588,7 +601,7 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestD
                 ? "border-green-600 text-green-600 hover:bg-green-50"
                 : "border-purple-600 text-purple-600 hover:bg-purple-50"
               }`}
-              onClick={(sub as any).form3SubmittedAt ? undefined : (sub as any).onForm3Submitted}
+              onClick={(sub as any).form3SubmittedAt ? undefined : onForm3Submitted}
               title={(sub as any).form3SubmittedAt ? "Form 3 already submitted" : "Send Form 3 Submitted email"}
             >
               {(sub as any).form3SubmittedAt ? "✓ Form 3 Sent" : "Form 3 Submitted"}
@@ -1220,7 +1233,8 @@ function DealerDetail({
                     <FormField control={form.control} name="fflLicenseNumber"
                       render={({ field }) => (
                         <FormItem><FormLabel>License Number</FormLabel>
-                          <FormControl><Input {...field} className="bg-background" /></FormControl>
+                          <FormControl><Input {...field} className="bg-background" placeholder="X-XX-XXX-XX-XX-XXXXX" /></FormControl>
+                          <p className="text-xs text-muted-foreground mt-1">Format: X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)</p>
                           <FormMessage /></FormItem>
                       )} />
                     <FormField control={form.control} name="fflLicenseType"
@@ -1694,18 +1708,31 @@ function InvoiceDialog({ sub, open, onClose }: {
   const taxAmount = 0;
   const total = subtotal;
 
-  // Pre-fill from submission when opened (including address)
+  // Pre-fill from submission when opened (refetch to get latest fields including customer address)
   useEffect(() => {
-    if (open && sub) {
-      setCustomerName(sub.contactName || sub.retailCustomerName || "");
-      setCustomerEmail(sub.email || sub.retailCustomerEmail || "");
-      setCustomerPhone(sub.phone || sub.retailCustomerPhone || "");
-      setCustomerAddress((sub as any).customerAddress || sub.retailCustomerAddress || "");
-      setCustomerCity((sub as any).customerCity || sub.retailCustomerCity || "");
-      setCustomerState((sub as any).customerState || sub.retailCustomerState || "");
-      setCustomerZip((sub as any).customerZip || sub.retailCustomerZip || "");
-      setQuantity(sub.quantity ? parseInt(sub.quantity) || 1 : 1);
-    }
+    if (!open || !sub) return;
+    setCustomerName(sub.contactName || sub.retailCustomerName || "");
+    setCustomerEmail(sub.email || sub.retailCustomerEmail || "");
+    setCustomerPhone(sub.phone || sub.retailCustomerPhone || "");
+    setQuantity(sub.quantity ? parseInt(sub.quantity) || 1 : 1);
+    // Refetch to get customer address fields
+    fetch(`/api/admin/submissions/${sub.id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.data) {
+          setCustomerAddress(data.data.customerAddress || data.data.retailCustomerAddress || "");
+          setCustomerCity(data.data.customerCity || data.data.retailCustomerCity || "");
+          setCustomerState(data.data.customerState || data.data.retailCustomerState || "");
+          setCustomerZip(data.data.customerZip || data.data.retailCustomerZip || "");
+        }
+      })
+      .catch(() => {
+        // Fallback to existing sub prop
+        setCustomerAddress((sub as any).customerAddress || sub.retailCustomerAddress || "");
+        setCustomerCity((sub as any).customerCity || sub.retailCustomerCity || "");
+        setCustomerState((sub as any).customerState || sub.retailCustomerState || "");
+        setCustomerZip((sub as any).customerZip || sub.retailCustomerZip || "");
+      });
   }, [open, sub]);
 
   const handleSend = async () => {
@@ -3073,6 +3100,9 @@ export default function AdminPage() {
                 showArchived={showArchived} setShowArchived={setShowArchived}
                 setArchiveTarget={setArchiveTarget}
                 setShipTarget={setShipTarget} setInvoiceTarget={setInvoiceTarget}
+                setDeleteTarget={setDeleteTarget}
+                setRequestDocsTarget={setRequestDocsTarget}
+                setForm3SubmittedTarget={setForm3SubmittedTarget}
                 onFetchSubmissions={fetchSubmissions}
               />
             </CardContent>
@@ -3252,9 +3282,9 @@ export default function AdminPage() {
         <DialogContent className="bg-card border-border max-w-md">
           <DialogHeader>
             <DialogTitle>Request Documents</DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-muted-foreground">
               Send an email to {requestDocsTarget?.email} requesting missing documents.
-            </p>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm font-medium">The following will be requested:</p>
@@ -3272,7 +3302,7 @@ export default function AdminPage() {
             <Button
               onClick={async () => {
                 if (!requestDocsTarget) return;
-                setSaving(true);
+                setRequestDocsSaving(true);
                 try {
                   const res = await fetch(`/api/admin/submissions/${requestDocsTarget.id}/request-docs`, { method: "POST" });
                   const data = await res.json();
@@ -3297,9 +3327,9 @@ export default function AdminPage() {
         <DialogContent className="bg-card border-border max-w-md">
           <DialogHeader>
             <DialogTitle>Form 3 Submitted</DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-muted-foreground">
               Send Form 3 notification to {form3SubmittedTarget?.email}.
-            </p>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm font-medium">The email will include:</p>

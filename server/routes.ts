@@ -1067,6 +1067,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "notes",
         "purchased","lastOrderDate"
       ];
+
+      // FFL format validation: X-XX-XXX-XX-XX-XXXXX, 15 digits with dashes
+      if (req.body.fflLicenseNumber) {
+        const ffl = req.body.fflLicenseNumber;
+        if (!/^\d-\d{2}-\d{3}-\d{2}-\d{2}-\d{5}$/.test(ffl) || ffl.replace(/-/g, '').length !== 15) {
+          return res.status(400).json({ ok: false, error: "invalid_ffl_format", message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)." });
+        }
+      }
+
       const updates: string[] = [];
       const values: any[] = [];
       let idx = 1;
@@ -1684,6 +1693,14 @@ DubDub22 Minions`;
       }
       if (!isInquiry && !quantityCans) {
         return res.status(400).json({ ok: false, error: "missing_required_fields" });
+      }
+
+      // FFL format validation: X-XX-XXX-XX-XX-XXXXX, 15 digits with dashes
+      if (fflNumber) {
+        const fflDigits = fflNumber.replace(/-/g, '');
+        if (!/^\d-\d{2}-\d{3}-\d{2}-\d{2}-\d{5}$/.test(fflNumber) || fflDigits.length !== 15) {
+          return res.status(400).json({ ok: false, error: "invalid_ffl_format", message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)." });
+        }
       }
 
       // Validate uploaded files
