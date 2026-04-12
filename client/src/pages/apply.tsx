@@ -494,7 +494,7 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
           address: encodeURIComponent(values.address || ""),
           city: encodeURIComponent(values.city || ""),
           state: encodeURIComponent(values.state || ""),
-          zip: encodeURIComponent(values.zip || ""),
+          zip: encodeURIComponent(values.zipCode || ""),
         });
         window.location.href = `/order-confirmation?${params.toString()}`;
         return;
