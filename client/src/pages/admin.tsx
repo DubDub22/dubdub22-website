@@ -8,7 +8,7 @@ import {
   ChevronRight, ArrowLeft, Building2, FileText,
   Upload, Eye, X, Search, Inbox,
   MessageSquare, ShieldCheck, Phone, Files, CheckCircle, XCircle, Send,
-  RefreshCw, Store
+  RefreshCw, Store, ShoppingCart
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -127,7 +127,7 @@ type Dealer = {
   submissions?: Submission[];
 };
 
-type Tab = "submissions" | "warranty" | "dealer_inquiries" | "retail_inquiries" | "files" | "tax_forms" | "archives";
+type Tab = "submissions" | "warranty" | "dealer_inquiries" | "retail_inquiries" | "retail" | "files" | "tax_forms" | "archives";
 
 // ── Schemas ────────────────────────────────────────────────────────────────────
 
@@ -2636,6 +2636,206 @@ function SerialsTab() {
   );
 }
 
+// ── Retail Orders Tab ───────────────────────────────────────────────────────────────
+
+interface RetailOrder {
+  id: number;
+  invoice_number: string | null;
+  retail_customer_name: string;
+  retail_customer_email: string | null;
+  retail_customer_phone: string | null;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+  form4_submitted_at: string | null;
+  form4_approved_at: string | null;
+  delivered_at: string | null;
+  notes: string | null;
+}
+
+function RetailOrdersTab() {
+  const { toast } = useToast();
+  const [orders, setOrders] = useState<RetailOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [formName, setFormName] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formQty, setFormQty] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [editStatus, setEditStatus] = useState<{ id: number; current: string } | null>(null);
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/retail-orders");
+      const data = await res.json();
+      if (data.ok) setOrders(data.orders);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  const createOrder = async () => {
+    if (!formName.trim()) { toast({ title: "Customer name is required" }); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/retail-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerName: formName.trim(), customerEmail: formEmail.trim(), customerPhone: formPhone.trim(), quantity: formQty }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast({ title: "Order created", description: `${formQty} × DubDub22 Suppressor for ${formName}` });
+        setFormName(""); setFormEmail(""); setFormPhone(""); setFormQty(1);
+        setShowNewForm(false);
+        fetchOrders();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const sendInvoice = async (orderId: number) => {
+    try {
+      const res = await fetch(`/api/admin/retail-orders/${orderId}/send-invoice`, { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        toast({ title: "Invoice sent!", description: data.invoiceNumber });
+        fetchOrders();
+      } else {
+        toast({ title: "Error", description: data.error });
+      }
+    } catch { toast({ title: "Failed to send invoice" }); }
+  };
+
+  const updateStatus = async (orderId: number, field: string, value: string) => {
+    const body: Record<string, any> = {};
+    if (field === "status") {
+      body.status = value;
+      if (value === "paid") body.paid_at = new Date().toISOString();
+      if (value === "form4_submitted") body.form4_submitted_at = new Date().toISOString();
+      if (value === "form4_approved") body.form4_approved_at = new Date().toISOString();
+      if (value === "delivered") body.delivered_at = new Date().toISOString();
+    }
+    await fetch(`/api/admin/retail-orders/${orderId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    fetchOrders();
+  };
+
+  const statusOrder = ["pending", "paid", "invoiced", "form4_submitted", "form4_approved", "delivered"];
+  const statusLabel: Record<string, string> = {
+    pending: "Pending", paid: "Paid", invoiced: "Invoice Sent",
+    form4_submitted: "Form 4 Submitted", form4_approved: "Form 4 Approved", delivered: "Delivered",
+  };
+  const statusColor: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-800",
+    paid: "bg-green-100 text-green-800",
+    invoiced: "bg-blue-100 text-blue-800",
+    form4_submitted: "bg-purple-100 text-purple-800",
+    form4_approved: "bg-indigo-100 text-indigo-800",
+    delivered: "bg-emerald-100 text-emerald-800",
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Retail Orders</h2>
+        <Button size="sm" onClick={() => setShowNewForm(s => !s)}>+ New Order</Button>
+      </div>
+
+      {showNewForm && (
+        <Card className="border-border">
+          <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <Input placeholder="Customer Name *" value={formName} onChange={e => setFormName(e.target.value)} />
+            <Input placeholder="Email" type="email" value={formEmail} onChange={e => setFormEmail(e.target.value)} />
+            <Input placeholder="Phone" type="tel" value={formPhone} onChange={e => setFormPhone(e.target.value)} />
+            <Input placeholder="Qty" type="number" min={1} value={formQty} onChange={e => setFormQty(parseInt(e.target.value) || 1)} />
+            <Button onClick={createOrder} disabled={submitting} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              {submitting ? "Creating..." : "Create Order"}
+            </Button>
+          </CardContent>
+          <CardContent className="pt-0 px-4 pb-4 text-sm text-muted-foreground">
+            DubDub22 Suppressor × qty — $129/ea — 8.25% sales tax — no shipping
+            {formQty > 0 && formName && (
+              <span className="ml-2 font-medium text-foreground">
+                = ${(formQty * 129 * 1.0825).toFixed(2)} total
+              </span>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? <p className="text-muted-foreground text-sm">Loading...</p> : orders.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No retail orders yet.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-border text-left">
+                <th className="py-2 pr-3 font-medium">Customer</th>
+                <th className="py-2 pr-3 font-medium hidden md:table-cell">Email</th>
+                <th className="py-2 pr-3 font-medium hidden sm:table-cell">Phone</th>
+                <th className="py-2 pr-3 font-medium text-center">Qty</th>
+                <th className="py-2 pr-3 font-medium text-right">Total</th>
+                <th className="py-2 pr-3 font-medium">Status</th>
+                <th className="py-2 pr-3 font-medium hidden lg:table-cell">Created</th>
+                <th className="py-2 pr-3 font-medium">Invoice</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map(order => (
+                <tr key={order.id} className="border-b border-border hover:bg-muted/40">
+                  <td className="py-2 pr-3 font-medium">{order.retail_customer_name}</td>
+                  <td className="py-2 pr-3 hidden md:table-cell text-muted-foreground">{order.retail_customer_email || "—"}</td>
+                  <td className="py-2 pr-3 hidden sm:table-cell text-muted-foreground">{order.retail_customer_phone || "—"}</td>
+                  <td className="py-2 pr-3 text-center">{order.quantity}</td>
+                  <td className="py-2 pr-3 text-right font-medium">${order.total_amount.toFixed(2)}</td>
+                  <td className="py-2 pr-3">
+                    <select
+                      value={order.status}
+                      onChange={e => updateStatus(order.id, "status", e.target.value)}
+                      className={`text-xs font-medium px-2 py-1 rounded border-0 cursor-pointer ${statusColor[order.status] || "bg-gray-100 text-gray-800"}`}
+                    >
+                      {statusOrder.map(s => (
+                        <option key={s} value={s}>{statusLabel[s] || s}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-2 pr-3 text-xs text-muted-foreground hidden lg:table-cell">
+                    {order.created_at ? format(new Date(order.created_at), "MM/dd/yy") : "—"}
+                  </td>
+                  <td className="py-2 pr-3">
+                    {!order.invoice_number ? (
+                      <Button variant="outline" size="sm" onClick={() => sendInvoice(order.id)}>
+                        Send Invoice
+                      </Button>
+                    ) : (
+                      <span className="text-xs font-mono text-muted-foreground">{order.invoice_number}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Files Tab ─────────────────────────────────────────────────────────────────
 
 function FilesTab() {
@@ -3076,6 +3276,14 @@ export default function AdminPage() {
             <Badge variant="secondary" className="ml-2 text-xs">{retailInquiries.length}</Badge>
           </button>
           <button
+            onClick={() => { setTab("retail"); }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              tab === "retail" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+            >
+            <ShoppingCart className="w-4 h-4 inline mr-1.5" />Retail Orders
+          </button>
+          <button
             onClick={() => { setTab("files"); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === "files" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -3158,6 +3366,14 @@ export default function AdminPage() {
                 setSearch={setRetailInquiriesSearch}
                 onDelete={(sub) => setRetailInquiryDeleteTarget(sub)}
               />
+            </CardContent>
+          </Card>
+        )}
+
+        {tab === "retail" && (
+          <Card className="bg-card/50 border-border">
+            <CardContent className="p-4 md:p-6">
+              <RetailOrdersTab />
             </CardContent>
           </Card>
         )}

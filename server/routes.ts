@@ -3400,6 +3400,177 @@ print(pdf_path)
     }
   });
 
+  // ── Retail Orders ──────────────────────────────────────────────────────────
+  // GET /api/admin/retail-orders — list all retail orders
+  app.get("/api/admin/retail-orders", requireAdmin, async (_req, res) => {
+    try {
+      const rows = await pool.query(`
+        SELECT id, invoice_number, retail_customer_name, retail_customer_email,
+               retail_customer_phone, quantity, unit_price, subtotal, tax_rate,
+               tax_amount, total_amount, status, created_at, paid_at,
+               form4_submitted_at, form4_approved_at, delivered_at, notes
+        FROM retail_orders
+        ORDER BY created_at DESC
+      `);
+      return res.json({ ok: true, orders: rows.rows });
+    } catch (err: any) {
+      console.error("retail_orders_list_error", err);
+      return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
+
+  // POST /api/admin/retail-orders — create a retail order (no invoice yet)
+  app.post("/api/admin/retail-orders", requireAdmin, async (req, res) => {
+    try {
+      const { customerName, customerEmail, customerPhone, quantity } = req.body || {};
+      if (!customerName) return res.status(400).json({ ok: false, error: "customer_name_required" });
+
+      const qty = Math.max(1, parseInt(String(quantity), 10) || 1);
+      const unitPrice = 129.0;
+      const subtotal = qty * unitPrice;
+      const taxRate = 0.0825;
+      const taxAmount = parseFloat((subtotal * taxRate).toFixed(2));
+      const total = subtotal + taxAmount; // no shipping
+
+      const result = await pool.query(
+        `INSERT INTO retail_orders (retail_customer_name, retail_customer_email, retail_customer_phone, quantity, unit_price, subtotal, tax_rate, tax_amount, total_amount, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+         RETURNING *`,
+        [customerName, customerEmail || null, customerPhone || null, qty, unitPrice, subtotal, taxRate, taxAmount, total]
+      );
+      return res.json({ ok: true, order: result.rows[0] });
+    } catch (err: any) {
+      console.error("retail_orders_create_error", err);
+      return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
+
+  // PATCH /api/admin/retail-orders/:id — update status, dates, notes
+  app.patch("/api/admin/retail-orders/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, paid_at, form4_submitted_at, form4_approved_at, delivered_at, notes } = req.body || {};
+
+      const fields: string[] = [];
+      const values: any[] = [];
+      let param = 1;
+
+      if (status !== undefined) { fields.push(`status = $${param++}`); values.push(status); }
+      if (paid_at !== undefined) { fields.push(`paid_at = $${param++}`); values.push(paid_at ? new Date(paid_at) : null); }
+      if (form4_submitted_at !== undefined) { fields.push(`form4_submitted_at = $${param++}`); values.push(form4_submitted_at ? new Date(form4_submitted_at) : null); }
+      if (form4_approved_at !== undefined) { fields.push(`form4_approved_at = $${param++}`); values.push(form4_approved_at ? new Date(form4_approved_at) : null); }
+      if (delivered_at !== undefined) { fields.push(`delivered_at = $${param++}`); values.push(delivered_at ? new Date(delivered_at) : null); }
+      if (notes !== undefined) { fields.push(`notes = $${param++}`); values.push(notes); }
+
+      if (fields.length === 0) return res.json({ ok: true, message: "no_changes" });
+
+      values.push(id);
+      await pool.query(
+        `UPDATE retail_orders SET ${fields.join(", ")} WHERE id = $${param} RETURNING *`,
+        values
+      );
+      return res.json({ ok: true });
+    } catch (err: any) {
+      console.error("retail_orders_update_error", err);
+      return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
+
+  // POST /api/admin/retail-orders/:id/send-invoice — generate PDF and email to customer
+  app.post("/api/admin/retail-orders/:id/send-invoice", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const rows = await pool.query(`SELECT * FROM retail_orders WHERE id = $1`, [id]);
+      if (!rows.rows.length) return res.status(404).json({ ok: false, error: "order_not_found" });
+      const order = rows.rows[0];
+
+      // Get next invoice number
+      const counterResult = await pool.query(
+        `INSERT INTO invoice_counter (id, last_number) VALUES (1, COALESCE((SELECT last_number FROM invoice_counter WHERE id = 1), 0) + 1)
+         ON CONFLICT (id) DO UPDATE SET last_number = invoice_counter.last_number + 1 RETURNING last_number`
+      );
+      const invoiceNumber = `INV-${String(counterResult.rows[0].last_number).padStart(4, "0")}`;
+
+      // Generate PDF
+      let pdfPath = null;
+      try {
+        const args = JSON.stringify({
+          invoice_number: invoiceNumber,
+          customer_name: order.retail_customer_name || "",
+          customer_email: order.retail_customer_email || "",
+          customer_phone: order.retail_customer_phone || "",
+          customer_address: "",
+          customer_city: "",
+          customer_state: "",
+          customer_zip: "",
+          quantity: order.quantity,
+          unit_price: order.unit_price,
+          subtotal: order.subtotal,
+          tax_amount: order.tax_amount,
+          shipping_cost: 0,
+          total_amount: order.total_amount,
+          is_retail: true,
+        });
+        const pdfOut = execSync(`/home/dubdub/DubDub-Hub/venv/bin/python -c "
+import sys, json, os
+sys.path.insert(0, '/home/dubdub/DubDub-Hub')
+from bot.services.invoice_generator import generate_pdf
+params = json.loads(sys.argv[1])
+pdf_path = generate_pdf(**params)
+print(pdf_path)
+" '${args}'`, { encoding: "utf8" }).trim();
+        if (pdfOut && fs.existsSync(pdfOut.trim())) pdfPath = pdfOut.trim();
+      } catch (e) {
+        console.warn("PDF generation failed:", e.message);
+      }
+
+      // Save invoice record
+      await pool.query(
+        `INSERT INTO invoices (invoice_number, is_retail, retail_customer_name, retail_customer_email, retail_customer_phone, quantity, unit_price, subtotal, tax_rate, tax_amount, total_amount, pdf_path, status, sent_at)
+         VALUES ($1, true, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'sent', NOW())`,
+        [invoiceNumber, order.retail_customer_name, order.retail_customer_email || null, order.retail_customer_phone || null,
+         order.quantity, order.unit_price, order.subtotal, order.tax_rate, order.tax_amount, order.total_amount, pdfPath]
+      );
+
+      // Email customer
+      const emailBody = [
+        `INVOICE: ${invoiceNumber}`,
+        ``,
+        `Customer: ${order.retail_customer_name}`,
+        order.retail_customer_email ? `Email: ${order.retail_customer_email}` : null,
+        order.retail_customer_phone ? `Phone: ${order.retail_customer_phone}` : null,
+        ``,
+        `${order.quantity} × DUBDUB22 SUPPRESSOR @ $${order.unit_price.toFixed(2)} = $${order.subtotal.toFixed(2)}`,
+        `Sales Tax (${(order.tax_rate * 100).toFixed(2)}%): $${order.tax_amount.toFixed(2)}`,
+        ``,
+        `TOTAL: $${order.total_amount.toFixed(2)}`,
+        ``,
+        `Payment: Cash, Check made out to "Thomas Trevino", or reach out to work something out. I cannot accept credit cards at this time.`,
+        ``,
+        `- Thomas Trevino | Double T Tactical | 469-307-8001`,
+      ].filter(Boolean).join("\n");
+
+      const attachment = pdfPath
+        ? { filename: `${invoiceNumber}.pdf`, base64Data: fs.readFileSync(pdfPath).toString("base64"), contentType: "application/pdf" }
+        : undefined;
+
+      const toEmail = order.retail_customer_email || "tomtrevino@doublettactical.com";
+      await sendViaGmail({
+        to: toEmail,
+        bcc: BCC_EMAIL,
+        from: `DubDub22 Orders <orders@dubdub22.com>`,
+        subject: `INVOICE ${invoiceNumber} - DubDub22 Suppressor`,
+        text: emailBody,
+        attachment,
+      });
+
+      return res.json({ ok: true, invoiceNumber });
+    } catch (err: any) {
+      console.error("retail_orders_send_invoice_error", err);
+      return res.status(500).json({ ok: false, error: err?.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
