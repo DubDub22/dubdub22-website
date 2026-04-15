@@ -2644,6 +2644,18 @@ function FilesTab() {
 
   const sources = [
     {
+      key: "dealer_files",
+      label: "Dealer Files",
+      description: "All dealers with FFL or SOT files on SFTP — full contact info, license numbers, file names, tier, and active status. Blank columns for Tom to fill in email, phone, and other missing data.",
+      countLabel: "All dealers with docs",
+    },
+    {
+      key: "dealers_ffl_sot",
+      label: "Dealers w/ FFL & SOT",
+      description: "All dealers in DB with both FFL and SOT files on record — from both the dealers table and submissions. Includes contact info where available, or a blank column to fill in.",
+      countLabel: "21 dealers",
+    },
+    {
       key: "rebel_dealer_list",
       label: "Rebel Dealer List",
       description: "826 dealers from Tom's uploaded list (35 Preferred, 791 Standard).",

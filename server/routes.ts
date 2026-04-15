@@ -1071,8 +1071,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // FFL format validation: X-XX-XXX-XX-XX-XXXXX, 15 digits with dashes
       if (req.body.fflLicenseNumber) {
         const ffl = req.body.fflLicenseNumber;
-        if (!/^\d-\d{2}-\d{3}-\d{2}-\d{2}-\d{5}$/.test(ffl) || ffl.replace(/-/g, '').length !== 15) {
-          return res.status(400).json({ ok: false, error: "invalid_ffl_format", message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)." });
+        if (!/^\d-\d{2}-\d{3}-[A-Za-z0-9]{2}-[A-Za-z0-9]{2}-\d{5}$/.test(ffl) || ffl.replace(/-/g, '').length !== 15) {
+          return res.status(400).json({ ok: false, error: "invalid_ffl_format", message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 chars, dashes only)." });
         }
       }
 
@@ -1161,6 +1161,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.setHeader("Content-Type", "text/plain");
         res.setHeader("Content-Disposition", "attachment; filename=\"compliance_pages_template.txt\"");
         return res.send(content);
+      }
+
+      // Special case: all dealers with FFL or SOT files — full contact info + metadata
+      if (source === "dealer_files") {
+        const result = await pool.query(
+          `SELECT d.business_name, d.contact_name, d.email, d.phone,
+                  d.city, d.state, d.zip, d.business_address,
+                  d.ffl_license_number,
+                  d.ffl_expiry_date,
+                  d.ffl_file_name,
+                  (d.ffl_file_name IS NOT NULL AND d.ffl_file_name != '') AS ffl_on_file,
+                  d.sot_license_type,
+                  d.sot_file_name,
+                  (d.sot_file_name IS NOT NULL AND d.sot_file_name != '') AS sot_on_file,
+                  d.sot_expiry_date,
+                  d.tax_exempt,
+                  d.ffl_reviewed,
+                  d.ein,
+                  d.website,
+                  d.facebook,
+                  d.tier,
+                  d.active,
+                  d.verified,
+                  d.created_at
+           FROM dealers d
+           WHERE d.ffl_file_name IS NOT NULL AND d.ffl_file_name != ''
+              OR d.sot_file_name IS NOT NULL AND d.sot_file_name != ''
+           ORDER BY d.business_name`
+        );
+        const cols = [
+          "business_name","contact_name","email","phone","city","state","zip","business_address",
+          "ffl_license_number","ffl_expiry_date","ffl_file_name","ffl_on_file",
+          "sot_license_type","sot_file_name","sot_on_file","sot_expiry_date",
+          "tax_exempt","ffl_reviewed","ein","website","facebook","tier","active","verified","created_at"
+        ];
+        const header = cols.join(",");
+        const csvRows = result.rows.map((r: any) =>
+          cols.map(c => {
+            const val = r[c] ?? "";
+            const str = String(val);
+            return str.includes(",") || str.includes('"') || str.includes("\n")
+              ? `"${str.replace(/"/g, '""')}"` : str;
+          }).join(",")
+        );
+        const csv = [header, ...csvRows].join("\n");
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="dealer_files_${new Date().toISOString().slice(0, 10)}.csv"`);
+        return res.send(csv);
+      }
+
+      // Special case: dealers with FFL and SOT (from both dealers and submissions tables)
+      if (source === "dealers_ffl_sot") {
+        const dealersResult = await pool.query(
+          `SELECT d.business_name, d.contact_name, d.email, d.phone, d.city, d.state,
+                  d.ffl_license_number, d.ffl_file_name, d.sot_file_name
+           FROM dealers d
+           WHERE d.ffl_file_name IS NOT NULL AND d.ffl_file_name != ''
+             AND d.sot_file_name IS NOT NULL AND d.sot_file_name != ''
+           ORDER BY d.business_name`
+        );
+        const submissionsResult = await pool.query(
+          `SELECT s.business_name, s.contact_name, s.email, s.phone,
+                  s.customer_city AS city, s.customer_state AS state,
+                  s.ffl_license_number, s.ffl_file_name, s.sot_file_name
+           FROM submissions s
+           WHERE s.ffl_file_name IS NOT NULL AND s.ffl_file_name != ''
+             AND s.sot_file_name IS NOT NULL AND s.sot_file_name != ''
+           ORDER BY s.business_name`
+        );
+        const cols = ["business_name","contact_name","email","phone","city","state","ffl_license_number","ffl_file_name","sot_file_name"];
+        const header = cols.join(",");
+        const allRows = [...dealersResult.rows, ...submissionsResult.rows];
+        const csvRows = allRows.map((r: any) =>
+          cols.map(c => {
+            const val = r[c] ?? "";
+            const str = String(val);
+            return str.includes(",") || str.includes('"') || str.includes("\n")
+              ? `"${str.replace(/"/g, '""')}"` : str;
+          }).join(",")
+        );
+        const csv = [header, ...csvRows].join("\n");
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader("Content-Disposition", `attachment; filename="dealers_ffl_and_sot_${new Date().toISOString().slice(0, 10)}.csv"`);
+        return res.send(csv);
       }
 
       const allowed = ["rebel_dealer_list", "web_form", "manual"];
@@ -1698,8 +1782,8 @@ DubDub22 Minions`;
       // FFL format validation: X-XX-XXX-XX-XX-XXXXX, 15 digits with dashes
       if (fflNumber) {
         const fflDigits = fflNumber.replace(/-/g, '');
-        if (!/^\d-\d{2}-\d{3}-\d{2}-\d{2}-\d{5}$/.test(fflNumber) || fflDigits.length !== 15) {
-          return res.status(400).json({ ok: false, error: "invalid_ffl_format", message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 digits, dashes only)." });
+        if (!/^\d-\d{2}-\d{3}-[A-Za-z0-9]{2}-[A-Za-z0-9]{2}-\d{5}$/.test(fflNumber) || fflDigits.length !== 15) {
+          return res.status(400).json({ ok: false, error: "invalid_ffl_format", message: "FFL must be in format X-XX-XXX-XX-XX-XXXXX (15 chars, dashes only)." });
         }
       }
 
@@ -2077,10 +2161,13 @@ DubDub22 Minions`;
     try {
       const {
         intent, contactName, businessName, email, phone,
-        message, quantity, fflFileName, fflFileData,
+        message, quantity, fflFileName, fflFileData, sotFileName, sotFileData,
         customerAddress, customerCity, customerState, customerZip,
         termsAccepted
       } = req.body || {};
+
+      // DEBUG
+      console.log("RETAIL_ORDER_DEBUG fflFileName:", fflFileName, "fflFileData len:", fflFileData ? fflFileData.length : 0, "sotFileData len:", sotFileData ? sotFileData.length : 0);
 
       if (!contactName || !email) {
         return res.status(400).json({ ok: false, error: "missing_required_fields" });
@@ -2185,10 +2272,10 @@ DubDub22 Minions`;
       // Preserve demo/stocking identity via type field
       const orderType = isInfo ? "inquiry" : (isDemo ? "demo" : "dealer_order");
       const result = await pool.query(`
-        INSERT INTO submissions (type, contact_name, business_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, customer_address, customer_city, customer_state, customer_zip)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO submissions (type, contact_name, business_name, email, phone, quantity, description, ffl_file_name, ffl_file_data, sot_file_name, sot_file_data, customer_address, customer_city, customer_state, customer_zip)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
-      `, [orderType, contactName, businessName || null, email, phone, qty, message || null, fflFileName || null, fflFileData || null, customerAddress || null, customerCity || null, customerState || null, customerZip || null]);
+      `, [orderType, contactName, businessName || null, email, phone, qty, message || null, fflFileName || null, fflFileData || null, sotFileName || null, sotFileData || null, customerAddress || null, customerCity || null, customerState || null, customerZip || null]);
       const newSub = result.rows[0];
 
       // Link to dealer via dealer_submissions if this email belongs to a known dealer
@@ -2208,6 +2295,28 @@ DubDub22 Minions`;
       } catch (linkErr) {
         console.error("dealer_submissions_link_error", linkErr);
         // Don't fail the request if linking fails
+      }
+
+      // Upload dealer documents to 3dprintmanager via SFTP (non-blocking)
+      if (!isInfo && fflFileData) {
+        // Look up dealer's FFL number for proper folder naming
+        const dealerRow = await pool.query(
+          `SELECT ffl_license_number FROM dealers WHERE email ILIKE $1 LIMIT 1`,
+          [email]
+        );
+        const fflForUpload = dealerRow.rows[0]?.ffl_license_number;
+        if (fflForUpload) {
+          uploadDealerDocuments(fflForUpload, {
+            fflFileData,
+            fflFileName: fflFileName || null,
+            sotFileData: undefined,
+            sotFileName: undefined,
+            resaleFileData: undefined,
+            resaleFileName: undefined,
+            taxFormFileData: undefined,
+            taxFormFileName: undefined,
+          }).catch(err => console.error("sftp_upload_dealer_docs_error", err));
+        }
       }
 
       // Post Discord webhook
