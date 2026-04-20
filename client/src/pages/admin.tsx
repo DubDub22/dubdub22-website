@@ -1422,6 +1422,12 @@ function DealerDetail({
                   {dealer.contactName && <div><span className="text-muted-foreground text-xs">Contact:</span> <strong>{dealer.contactName}</strong></div>}
                   {dealer.email && <div><span className="text-muted-foreground text-xs">Email:</span> <CopyableText text={dealer.email} /></div>}
                   {dealer.phone && <div><span className="text-muted-foreground text-xs">Phone:</span> <CopyableText text={dealer.phone} /></div>}
+                  {dealer.fflLicenseNumber && (() => {
+                    const ffl = dealer.fflLicenseNumber.replace(/-/g, '');
+                    const first3 = dealer.fflLicenseNumber.split('-').slice(0, 3).join('-');
+                    const last5 = ffl.slice(-5);
+                    return <div><span className="text-muted-foreground text-xs">FFL:</span> <CopyableText text={`${first3} / ${last5}`} /></div>;
+                  })()}
                   {dealer.ein && <div><span className="text-muted-foreground text-xs">EIN:</span> <CopyableText text={dealer.ein} /></div>}
                   {dealer.businessAddress && <div><span className="text-muted-foreground text-xs">Address:</span> {dealer.businessAddress}</div>}
                   {(dealer.city || dealer.state || dealer.zip) && (
