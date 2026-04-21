@@ -46,35 +46,38 @@ function UploadField({
 }) {
   return (
     <div className="relative">
-      <div className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg transition-colors duration-200 cursor-pointer overflow-hidden ${error ? "border-red-500 bg-red-500/5" : "border-border hover:border-primary/40 bg-card"}`}>
-        <Input
+      <label
+        htmlFor={id}
+        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg transition-colors duration-200 cursor-pointer p-4 text-center ${error ? "border-red-500 bg-red-500/5" : "border-border hover:border-primary/40 bg-card"}`}
+        style={{ minHeight: "80px" }}
+      >
+        <input
           id={id}
           type="file"
           accept={accept}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 file:cursor-pointer"
+          className="sr-only"
           onChange={(e) => onFileChange(e.target.files?.[0] || null)}
         />
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-0 pointer-events-none">
-          {file ? (
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
-              <span className="text-sm text-foreground truncate max-w-[200px]">{file.name}</span>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onFileChange(null); }}
-                className="text-muted-foreground hover:text-destructive ml-1 shrink-0"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <>
-              <UploadCloud className="w-5 h-5 mb-1 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Click or drop</span>
-            </>
-          )}
-        </div>
-      </div>
+        {file ? (
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+            <span className="text-sm text-foreground truncate max-w-[220px]">{file.name}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onFileChange(null); }}
+              className="text-muted-foreground hover:text-destructive shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <>
+            <UploadCloud className="w-6 h-6 mb-2 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Click to upload</span>
+            <span className="text-xs text-muted-foreground mt-0.5">PDF, PNG, JPG</span>
+          </>
+        )}
+      </label>
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
@@ -102,6 +105,7 @@ function PendingUpload(props: { fflNumber: string }) {
     city: string;
     state: string;
     zipCode: string;
+    ein: string;
     message: string;
   };
 
@@ -116,6 +120,7 @@ function PendingUpload(props: { fflNumber: string }) {
       city: "",
       state: "",
       zipCode: "",
+      ein: "",
       message: "",
     },
   });
@@ -131,6 +136,7 @@ function PendingUpload(props: { fflNumber: string }) {
     if (!values.city || values.city.trim().length < 2) { toast({ title: "Validation", description: "City is required", variant: "destructive" }); return; }
     if (!values.state || values.state.trim().length < 2) { toast({ title: "Validation", description: "State is required", variant: "destructive" }); return; }
     if (!values.zipCode || values.zipCode.trim().length < 5) { toast({ title: "Validation", description: "ZIP code is required", variant: "destructive" }); return; }
+    if (!values.ein || values.ein.trim().length < 2) { toast({ title: "Validation", description: "EIN is required", variant: "destructive" }); return; }
 
     const fullFfl = fflSegs.join("-");
     if (fflSegs.some(s => s.length === 0)) {
@@ -173,6 +179,7 @@ function PendingUpload(props: { fflNumber: string }) {
           city: values.city,
           state: values.state,
           zipCode: values.zipCode,
+          ein: values.ein,
           message: values.message || null,
           fflFileName: fflFile.name,
           fflFileData: fflBase64,
@@ -581,6 +588,7 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
     if (!values.city || values.city.trim().length < 2) { toast({ title: "Validation", description: "City is required", variant: "destructive" }); return; }
     if (!values.state || values.state.trim().length < 2) { toast({ title: "Validation", description: "State is required", variant: "destructive" }); return; }
     if (!values.zipCode || values.zipCode.trim().length < 5) { toast({ title: "Validation", description: "ZIP code is required", variant: "destructive" }); return; }
+    if (!values.ein || values.ein.trim().length < 2) { toast({ title: "Validation", description: "EIN is required", variant: "destructive" }); return; }
     if (orderKind === "inquiry" && (!values.message || values.message.trim().length < 1)) { toast({ title: "Validation", description: "Message is required", variant: "destructive" }); return; }
 
     const fullFfl = fflSegs.join("-");
@@ -635,6 +643,11 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
 
       // Demo / stocking orders → redirect to order confirmation to accept terms
       if (orderKind !== "inquiry") {
+        // Store file data for the confirmation page to include in the final order POST
+        sessionStorage.setItem("pendingFflFileName", fflFile.name);
+        sessionStorage.setItem("pendingFflFileData", fflBase64);
+        sessionStorage.setItem("pendingSotFileName", sotFile ? sotFile.name : "");
+        sessionStorage.setItem("pendingSotFileData", sotBase64 || "");
         const qty = quantityCans ? String(quantityCans) : "1";
         const params = new URLSearchParams({
           type: orderKind === "demo" ? "demo" : "stocking",
@@ -819,13 +832,18 @@ function DealerForm(props: { fflNumber: string; dealerName?: string; email?: str
           )} />
         </div>
 
+        {/* ── EIN ── */}
+        <FormField control={form.control} name="ein" render={({ field }) => (
+          <FormItem><FormLabel>EIN <span className="text-xs text-destructive font-normal">*</span></FormLabel><FormControl><Input {...field} placeholder="XX-XXXXXXX" className="bg-card border-border" /></FormControl><FormMessage /></FormItem>
+        )} />
+
         {/* ── FFL Expiry / EIN ── */}
         <div className="grid md:grid-cols-2 gap-4">
           <FormField control={form.control} name="fflExpiry" render={({ field }) => (
             <FormItem><FormLabel>FFL Expiration <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel><FormControl><Input {...field} placeholder="MM/DD/YYYY" className="bg-card border-border" /></FormControl><FormMessage /></FormItem>
           )} />
           <FormField control={form.control} name="ein" render={({ field }) => (
-            <FormItem><FormLabel>EIN <span className="text-xs text-muted-foreground font-normal">(optional)</span></FormLabel><FormControl><Input {...field} placeholder="XX-XXXXXXX" className="bg-card border-border" /></FormControl><FormMessage /></FormItem>
+            <FormItem><FormLabel>EIN <span className="text-xs text-destructive font-normal">*</span></FormLabel><FormControl><Input {...field} placeholder="XX-XXXXXXX" className="bg-card border-border" /></FormControl><FormMessage /></FormItem>
           )} />
         </div>
 

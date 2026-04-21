@@ -1587,7 +1587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ffl/upload", publicFormLimiter, async (req, res) => {
     try {
       const {
-        fflNumber, dealerName, contactName, email, phone, address, city, state, zipCode, message,
+        fflNumber, dealerName, contactName, email, phone, address, city, state, zipCode, ein, message,
         fflFileName, fflFileData,
         sotFileName, sotFileData,
         taxFormName, taxFormData,
@@ -1650,17 +1650,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isExisting) {
         // Update existing record with contact info (file fields left as-is)
         await pool.query(
-          `UPDATE dealers SET business_name = COALESCE(NULLIF($1, ''), business_name), contact_name = COALESCE(NULLIF($2, ''), contact_name), email = COALESCE(NULLIF($3, ''), email), phone = COALESCE(NULLIF($4, ''), phone), business_address = COALESCE(NULLIF($5, ''), business_address), city = COALESCE(NULLIF($6, ''), city), state = COALESCE(NULLIF($7, ''), state), zip = COALESCE(NULLIF($8, ''), zip), notes = COALESCE(NULLIF($9, ''), notes) WHERE id = $10`,
-          [dealerName, contactName, email, phone, address, city, state, zipCode, message, existing.rows[0].id]
+          `UPDATE dealers SET business_name = COALESCE(NULLIF($1, ''), business_name), contact_name = COALESCE(NULLIF($2, ''), contact_name), email = COALESCE(NULLIF($3, ''), email), phone = COALESCE(NULLIF($4, ''), phone), business_address = COALESCE(NULLIF($5, ''), business_address), city = COALESCE(NULLIF($6, ''), city), state = COALESCE(NULLIF($7, ''), state), zip = COALESCE(NULLIF($8, ''), zip), ein = COALESCE(NULLIF($11, ''), ein), notes = COALESCE(NULLIF($9, ''), notes) WHERE id = $10`,
+          [dealerName, contactName, email, phone, address, city, state, zipCode, message, existing.rows[0].id, ein || null]
         );
         dealerId = existing.rows[0].id;
       } else {
         // Create a pending dealer entry
         const ins = await pool.query(
-          `INSERT INTO dealers (business_name, ffl_license_number, contact_name, email, phone, business_address, city, state, zip, notes, verified, source)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, 'pending_upload')
+          `INSERT INTO dealers (business_name, ffl_license_number, contact_name, email, phone, business_address, city, state, zip, ein, notes, verified, source)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, 'pending_upload')
            RETURNING id`,
-          [dealerName || `Pending FFL ${normalized}`, normalized, contactName || null, email || null, phone || null, address || null, city || null, state || null, zipCode || null, message || null]
+          [dealerName || `Pending FFL ${normalized}`, normalized, contactName || null, email || null, phone || null, address || null, city || null, state || null, zipCode || null, ein || null, message || null]
         );
         dealerId = ins.rows[0].id;
       }
@@ -1857,10 +1857,10 @@ DubDub22 Minions`;
         );
       } else {
         const newDealer = await pool.query(
-          `INSERT INTO dealers (business_name, contact_name, email, phone, source, tier)
-           VALUES ($1, $2, $3, $4, 'web_form', 'Preferred')
+          `INSERT INTO dealers (business_name, contact_name, email, phone, ein, source, tier)
+           VALUES ($1, $2, $3, $4, $5, 'web_form', 'Preferred')
            RETURNING id`,
-          [bizName, contactName, email.toLowerCase(), phone || null]
+          [bizName, contactName, email.toLowerCase(), phone || null, ein || null]
         );
         dealerId = newDealer.rows[0].id;
       }
