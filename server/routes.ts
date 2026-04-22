@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { registerWildRoutes } from "./routes/wild.js";
+import { registerWildRoutes } from "./routes/wild.ts";
 import session from "express-session";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";

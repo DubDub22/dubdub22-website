@@ -1,4 +1,5 @@
 import ShippingPolicyPage from "@/pages/shipping-policy";
+import PrivacyPolicyPage from "@/pages/privacy-policy";
 import ReturnsRestockingPage from "@/pages/returns";
 import UploadTaxFormPage from "./pages/upload-tax-form";
 import { queryClient } from "./lib/queryClient";
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/find" component={FindPage} />
       <Route path="/apply" component={ApplyPage} />
       <Route path="/warranty" component={WarrantyPage} />
+      <Route path="/privacy" component={PrivacyPolicyPage} />
       <Route path="/shipping" component={ShippingPolicyPage} />
       <Route path="/returns" component={ReturnsRestockingPage} />
       <Route path="/order" component={OrderPage} />

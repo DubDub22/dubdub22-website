@@ -1,6 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { pool } from "./db";
 
 const CSV_PATH = "/home/dubdub/DubDubSuppressor/ffl_master.csv";
 
