@@ -1697,6 +1697,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [dealerId, subIns.rows[0].id]
       );
 
+      // ── SFTP upload + database flags ────────────────────────────────────────
+      const hasFfl = !!(fflFileData && fflFileName);
+      const hasSot = !!(sotFileData && sotFileName);
+      const hasTax = !!(taxFormData && taxFormName);
+
+      if (normalized && (hasFfl || hasSot || hasTax)) {
+        uploadDealerDocuments(normalized, {
+          fflFileData: fflFileData || undefined,
+          fflFileName: fflFileName || undefined,
+          sotFileData: sotFileData || undefined,
+          sotFileName: sotFileName || undefined,
+          resaleFileData: undefined,
+          resaleFileName: undefined,
+          taxFormFileData: taxFormData || undefined,
+          taxFormName: taxFormName || undefined,
+        }).catch(err => console.error("sftp_upload_dealer_docs_error", err));
+        await pool.query(
+          `UPDATE dealers SET ffl_on_file = $1, sot_on_file = $2, tax_form_on_file = $3, updated_at = CURRENT_TIMESTAMP WHERE ffl_license_number = $4`,
+          [hasFfl, hasSot, hasTax, normalized]
+        );
+      }
+
       // Send ONE email to the dealer: all submitted info + request for FFL/SOT/tax forms, BCC Tom
       if (email) {
         const taxFormPath = path.join(__dirname, "../shared/multi_state_tax_form.pdf");
@@ -2007,10 +2029,28 @@ DubDub22 Minions`;
       }
 
       // Upload documents to 3dprintmanager via SFTP (non-blocking)
-      if (!isInquiry && fflNumber && (fflFileData || sotFileData)) {
-        uploadDealerDocuments(fflNumber, { fflFileData, fflFileName, sotFileData, sotFileName, resaleFileData, resaleFileName, taxFormFileData, taxFormFileName }).catch(err =>
-          console.error("sftp_upload_dealer_docs_error", err)
-        );
+      const hasFflFile = !!(fflFileData && fflFileName);
+      const hasSotFile = !!(sotFileData && sotFileName);
+      const hasTaxFile = !!(taxFormData && taxFormName);
+      const hasAnyFile = hasFflFile || hasSotFile || hasTaxFile;
+
+      if (fflNumber && hasAnyFile) {
+        uploadDealerDocuments(fflNumber, {
+          fflFileData: fflFileData || undefined,
+          fflFileName: fflFileName || undefined,
+          sotFileData: sotFileData || undefined,
+          sotFileName: sotFileName || undefined,
+          resaleFileData: resaleFileData || undefined,
+          resaleFileName: resaleFileName || undefined,
+          taxFormFileData: taxFormData || undefined,
+          taxFormName: taxFormFileName || undefined,
+        }).catch(err => console.error("sftp_upload_dealer_docs_error", err));
+        if (existingDealer?.id) {
+          await pool.query(
+            `UPDATE dealers SET ffl_on_file = COALESCE($1, ffl_on_file), sot_on_file = COALESCE($2, sot_on_file), tax_form_on_file = COALESCE($3, tax_form_on_file), updated_at = CURRENT_TIMESTAMP WHERE id = $4`,
+            [hasFflFile, hasSotFile, hasTaxFile, existingDealer.id]
+          );
+        }
       }
 
       // Build forms status paragraph for auto-reply
