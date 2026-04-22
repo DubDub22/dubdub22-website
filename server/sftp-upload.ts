@@ -29,7 +29,7 @@ export function sftpRead(remotePath: string): Promise<Buffer> {
 const SFTP_HOST = "100.99.180.68";
 const SFTP_PORT = 22;
 const SFTP_USER = "dealer-uploader";
-const SFTP_KEY_PATH = "/root/.ssh/id_ed25519";
+const SFTP_KEY_PATH = "/home/dubdub/.ssh/id_ed25519_sftp";
 
 /**
  * Upload a file buffer to a remote SFTP server.

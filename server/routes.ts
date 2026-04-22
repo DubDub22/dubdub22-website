@@ -518,7 +518,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/submissions", requireAdmin, async (req, res) => {
     try {
       const includeArchived = req.query.includeArchived === "true";
+      console.log(`[ARCHIVES_DEBUG] includeArchived=${includeArchived}, tab=${req.query.tab || 'unknown'}, totalDB=87`);
       const submissions = await storage.getSubmissions(includeArchived);
+      console.log(`[ARCHIVES_DEBUG] returned ${submissions.length} rows, archived_count=${submissions.filter((s: any) => s.archived).length}`);
       // Map snake_case DB columns to camelCase for frontend
       const mapped = submissions.map((s: any) => ({
         id: s.id,
@@ -685,7 +687,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/admin/submissions/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      console.log("[DELETE_SUBMISSION] id=", id);
       await storage.deleteSubmission(id);
+      const remaining = await storage.getSubmissions(false);
+      console.log("[DELETE_SUBMISSION] deleted=", id, "remaining count=", remaining.length);
       return res.json({ ok: true });
     } catch (err: any) {
       console.error("delete_submission_error", err);
@@ -962,17 +967,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // List all dealers with order counts
   app.get("/api/admin/dealers", requireAdmin, async (req, res) => {
     try {
+      // Deduplicate by business name: prefer records with ffl_on_file=true,
+      // then records with a non-empty FFL number, newest first.
       const result = await pool.query(`
-        SELECT
-          d.*,
+        WITH ranked AS (
+          SELECT d.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY UPPER(REGEXP_REPLACE(d.business_name, '[^a-zA-Z0-9]', '', 'g'))
+              ORDER BY
+                CASE WHEN d.ffl_on_file THEN 2
+                     WHEN d.ffl_license_number IS NOT NULL AND d.ffl_license_number != '' THEN 1
+                     ELSE 0 END DESC,
+                d.created_at DESC
+            ) AS rn
+          FROM dealers d
+        )
+        SELECT r.*,
           COUNT(ds.id) AS order_count,
           COUNT(*) FILTER (WHERE ds.order_type = 'demo_order') AS demo_count,
           COUNT(*) FILTER (WHERE ds.order_type = 'dealer') AS dealer_order_count,
-          d.demo_fulfilled_at
-        FROM dealers d
-        LEFT JOIN dealer_submissions ds ON ds.dealer_id = d.id
-        GROUP BY d.id
-        ORDER BY d.created_at DESC
+          r.demo_fulfilled_at
+        FROM ranked r
+        LEFT JOIN dealer_submissions ds ON ds.dealer_id = r.id
+        WHERE r.rn = 1
+        GROUP BY r.id
+        ORDER BY r.business_name ASC
       `);
       return res.json({ ok: true, data: result.rows });
     } catch (err: any) {
@@ -3526,7 +3545,7 @@ print(pdf_path)
       // Save invoice record
       await pool.query(
         `INSERT INTO invoices (invoice_number, dealer_id, subtotal, total_amount, status, sent_at, pdf_path, is_retail, retail_customer_name, retail_customer_email, retail_customer_phone, quantity, unit_price, tax_rate, tax_amount)
-         VALUES ($1, NULL, $2, $3, 'sent', NOW(), $4, true, $5, $6, $7, $8, $9, $10, $11)`,
+         VALUES ($1, 0, $2, $3, 'sent', NOW(), $4, true, $5, $6, $7, $8, $9, $10, $11)`,
         [invoiceNumber, order.subtotal, order.total_amount, pdfPath,
          order.retail_customer_name, order.retail_customer_email || null, order.retail_customer_phone || null,
          order.quantity, order.unit_price, order.tax_rate, order.tax_amount]

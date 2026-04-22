@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dubdub22-cache-v15';
+const CACHE_NAME = 'dubdub22-cache-v16';
 
 self.addEventListener('install', event => {
     self.skipWaiting();

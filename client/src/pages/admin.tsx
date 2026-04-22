@@ -454,11 +454,9 @@ function SubmissionCard({ sub, onArchive, onDelete, onShip, onInvoice }: { sub: 
           <span className="text-xs text-muted-foreground font-mono">{fmtDate(sub.createdAt)}</span>
         </div>
         <div className="flex gap-1">
-          {!sub.archived && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500" onClick={onDelete} title="Delete">
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-red-500" onClick={onDelete} title="Delete">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
           {!sub.archived && (
             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-orange-500" onClick={onArchive} title="Archive">
               <Archive className="h-3.5 w-3.5" />
@@ -646,11 +644,9 @@ function SubmissionRow({ sub, onArchive, onDelete, onShip, onInvoice, onRequestD
       </td>
       <td className="px-3 py-3">
         <div className="flex gap-1">
-          {!sub.archived && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={onDelete} title="Delete">
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={onDelete} title="Delete">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
           {!sub.archived ? (
             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-orange-500" onClick={onArchive} title="Archive">
               <Archive className="h-3.5 w-3.5" />
@@ -2993,6 +2989,7 @@ export default function AdminPage() {
   const [sortBy, setSortBy] = useState<"date" | "quantity">("date");
   const [archiveTarget, setArchiveTarget] = useState<Submission | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Submission | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [shipTarget, setShipTarget] = useState<Submission | null>(null);
   const [invoiceTarget, setInvoiceTarget] = useState<Submission | null>(null);
   const [requestDocsTarget, setRequestDocsTarget] = useState<Submission | null>(null);
@@ -3156,14 +3153,16 @@ export default function AdminPage() {
   };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deletingId) return;
+    const id = deleteTarget.id;
+    setDeletingId(id);
     try {
-      const res = await fetch(`/api/admin/submissions/${deleteTarget.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/submissions/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Delete failed");
-      setSubmissions(prev => prev.filter(s => s.id !== deleteTarget.id));
+      setSubmissions(prev => prev.filter(s => s.id !== id));
       toast({ title: "Deleted", description: "Submission removed." });
     } catch { toast({ title: "Error", description: "Could not delete.", variant: "destructive" }); }
-    finally { setDeleteTarget(null); }
+    finally { setDeleteTarget(null); setDeletingId(null); }
   };
 
   const handleArchive = async () => {
@@ -3452,7 +3451,7 @@ export default function AdminPage() {
                         key={sub.id}
                         sub={sub}
                         onArchive={() => setArchiveTarget(sub)}
-                        onDelete={() => {}}
+                        onDelete={() => { console.log("delete card clicked", sub.id); setDeleteTarget(sub); }}
                         onShip={() => {}}
                         onInvoice={() => {}}
                       />
@@ -3496,7 +3495,7 @@ export default function AdminPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-secondary text-foreground hover:bg-secondary/80 border-border">Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700" onClick={handleDelete}>Delete</AlertDialogAction>
+            <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50" onClick={handleDelete} disabled={!!deletingId}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

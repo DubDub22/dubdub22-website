@@ -67,6 +67,17 @@ export default function OrderConfirmationPage() {
 
     setAccepting(true);
     try {
+      // Retrieve file data stored by the order or apply page
+      const pendingFflFileName = sessionStorage.getItem("pendingFflFileName");
+      const pendingFflFileData = sessionStorage.getItem("pendingFflFileData");
+      const pendingSotFileName = sessionStorage.getItem("pendingSotFileName");
+      const pendingSotFileData = sessionStorage.getItem("pendingSotFileData");
+      // Clear stored file data after retrieving
+      sessionStorage.removeItem("pendingFflFileName");
+      sessionStorage.removeItem("pendingFflFileData");
+      sessionStorage.removeItem("pendingSotFileName");
+      sessionStorage.removeItem("pendingSotFileData");
+
       // Call /api/retail-order with the same shape as the public order form,
       // so the dealer order gets a DB record AND automatic emails sent
       await fetch("/api/retail-order", {
@@ -80,8 +91,10 @@ export default function OrderConfirmationPage() {
           phone: dealerPhone || null,
           message: null,
           quantity: String(unitCount),
-          fflFileName: null,
-          fflFileData: null,
+          fflFileName: pendingFflFileName,
+          fflFileData: pendingFflFileData,
+          sotFileName: pendingSotFileName || null,
+          sotFileData: pendingSotFileData || null,
           customerAddress: customerAddress || null,
           customerCity: customerCity || null,
           customerState: customerState || null,
@@ -239,7 +252,7 @@ export default function OrderConfirmationPage() {
           <h2 className="text-lg font-semibold mb-4">Terms and Conditions</h2>
           <div className="bg-background rounded-md border border-border p-4 max-h-64 overflow-y-auto text-xs text-muted-foreground space-y-4 mb-4">
             <p>
-              <strong className="text-foreground">IMPORTANT — READ CAREFULLY</strong>
+              <strong className="text-foreground">Important — Read Carefully</strong>
             </p>
 
             <p>
@@ -274,15 +287,15 @@ export default function OrderConfirmationPage() {
 
             <p>
               <strong className="text-foreground">4. Shipping and Risk of Loss.</strong> All orders
-              are SHIPPED WITH SHIPPING CHARGES INCLUDED AND INSURED BY SHIPPER. SHIPPER CHOICE IS
-              DETERMINED BY SHIPPER.
+              are shipped with a flat rate of $10 and insured by shipper. Shipper choice is
+              determined by shipper.
             </p>
 
             <p>
               <strong className="text-foreground">5. Returns and Cancellations.</strong> Stocking
               orders may be cancelled prior to shipment with written notice. NFA items that have
-              been transferred to Dealer may not be returned. THERE IS A 20% RESTOCKING AND
-              CANCELLATION FEE FOR ALL ORDERS CANCELLED PRIOR TO SHIPMENT.
+              been transferred to Dealer may not be returned. There is a 20% restocking and
+              cancellation fee for all orders cancelled prior to shipment.
             </p>
 
             <p>
@@ -297,9 +310,9 @@ export default function OrderConfirmationPage() {
               <strong className="text-foreground">7. Limitation of Liability.</strong> Seller&apos;s
               liability for any claim arising out of or related to the Products shall not exceed
               the purchase price paid by Dealer for the Products. In no event shall Seller be
-              liable for any consequential, incidental, or special damages. SELLER IS NOT
-              RESPONSIBLE FOR ANY DAMAGES CAUSED BY USE BEYOND WHAT THE SPECIFIED LIMITS OF THE
-              DUBDUB22 SUPPRESSOR ARE.
+              liable for any consequential, incidental, or special damages. Seller is not
+              responsible for any damages caused by use beyond what the specified limits of the
+              DubDub22 suppressor are.
             </p>
 
             <p>

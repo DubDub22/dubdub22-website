@@ -39,6 +39,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-motion": ["framer-motion"],
+          "vendor-map": ["leaflet", "react-leaflet"],
+          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-select"],
+        },
+      },
+    },
   },
   server: {
     host: "0.0.0.0",

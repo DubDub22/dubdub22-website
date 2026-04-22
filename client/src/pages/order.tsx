@@ -4,7 +4,7 @@ import SiteFooter from "@/components/SiteFooter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { UploadCloud, Loader2, CheckCircle } from "lucide-react";
+import { UploadCloud, Loader2, CheckCircle, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,7 @@ export default function OrderPage() {
   const [quantity, setQuantity] = useState<string>("5");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string>("");
 
   const form = useForm<z.infer<typeof orderFormSchema>>({
     resolver: zodResolver(orderFormSchema),
@@ -79,7 +80,8 @@ export default function OrderPage() {
     try {
       const fflInput = document.getElementById("fflUpload") as HTMLInputElement | null;
       const selectedFile = fflInput?.files?.[0] || null;
-      const fflName = selectedFile?.name || null;
+      // Use state-set filename if available, otherwise fall back to DOM
+      const fflName = selectedFileName || selectedFile?.name || null;
 
       let fileBase64: string | null = null;
       if (selectedFile) {
@@ -93,6 +95,8 @@ export default function OrderPage() {
           reader.readAsDataURL(selectedFile);
         });
       }
+
+      console.log("[ORDER_DEBUG] selectedFile:", selectedFile?.name, "size:", selectedFile?.size, "fileBase64 len:", fileBase64?.length);
 
       const isInfo = intent === "info";
       const payload = {
@@ -109,6 +113,12 @@ export default function OrderPage() {
         customerState: values.customerState || null,
         customerZip: values.customerZip || null,
       };
+
+      // Store file data for the confirmation page flow
+      if (fileBase64 && fflName) {
+        sessionStorage.setItem("pendingFflFileName", fflName);
+        sessionStorage.setItem("pendingFflFileData", fileBase64);
+      }
 
       const resp = await fetch("/api/retail-order", {
         method: "POST",
@@ -137,6 +147,7 @@ export default function OrderPage() {
       form.reset();
       setIntent("info");
       setQuantity("5");
+      setSelectedFileName("");
       if (fflInput) fflInput.value = "";
     } catch {
       toast({
@@ -390,14 +401,28 @@ export default function OrderPage() {
                       type="file"
                       accept=".pdf,.png,.jpg,.jpeg"
                       className="absolute inset-0 w-[200%] h-[200%] -ml-10 -mt-10 opacity-0 cursor-pointer z-50 file:cursor-pointer"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        setSelectedFileName(file?.name || "");
+                      }}
                     />
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center z-10 pointer-events-none">
-                      <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
-                        Drop your SOT file here, or{" "}
-                        <span className="text-primary font-medium">click to browse</span>
-                      </span>
-                      <span className="text-xs text-muted-foreground mt-1">PDF, PNG, JPG/JPEG accepted</span>
+                      {selectedFileName ? (
+                        <>
+                          <FileCheck className="w-8 h-8 mb-2 text-green-500" />
+                          <span className="text-sm text-green-500 font-medium truncate max-w-full px-2">{selectedFileName}</span>
+                          <span className="text-xs text-muted-foreground mt-1">Click to change</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            Drop your SOT file here, or{" "}
+                            <span className="text-primary font-medium">click to browse</span>
+                          </span>
+                          <span className="text-xs text-muted-foreground mt-1">PDF, PNG, JPG/JPEG accepted</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -21,6 +21,8 @@ export async function serveStatic(app: Express, server: Server) {
         res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
         res.setHeader("Pragma", "no-cache");
         res.setHeader("Expires", "0");
+      } else if (filePath.includes("/assets/")) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
       }
     },
   }));
